@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { kamiLogin, getNotice, getSavedKami, getDeviceCode } from '../kamiApi';
+import { kamiLogin, kamiUnbind, getNotice, getSavedKami, getDeviceCode } from '../kamiApi';
 import './LoginPanel.css';
 
 interface LoginPanelProps {
@@ -10,7 +10,9 @@ export function LoginPanel({ onLoginSuccess }: LoginPanelProps) {
   const [kami, setKami] = useState('');
   const [notice, setNotice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isUnbinding, setIsUnbinding] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [deviceCode, setDeviceCode] = useState('');
 
   useEffect(() => {
@@ -42,6 +44,7 @@ export function LoginPanel({ onLoginSuccess }: LoginPanelProps) {
 
     setIsLoading(true);
     setError('');
+    setSuccess('');
 
     const result = await kamiLogin(kami.trim());
 
@@ -49,6 +52,28 @@ export function LoginPanel({ onLoginSuccess }: LoginPanelProps) {
 
     if (result.success) {
       onLoginSuccess();
+    } else {
+      setError(result.message);
+    }
+  };
+
+  const handleUnbind = async () => {
+    if (!kami.trim()) {
+      setError('请输入要解绑的卡密');
+      return;
+    }
+
+    setIsUnbinding(true);
+    setError('');
+    setSuccess('');
+
+    const result = await kamiUnbind(kami.trim());
+
+    setIsUnbinding(false);
+
+    if (result.success) {
+      setSuccess(result.message);
+      setKami('');
     } else {
       setError(result.message);
     }
@@ -84,19 +109,29 @@ export function LoginPanel({ onLoginSuccess }: LoginPanelProps) {
               onChange={(e) => setKami(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="请输入卡密"
-              disabled={isLoading}
+              disabled={isLoading || isUnbinding}
             />
           </div>
 
           {error && <div className="error-message">{error}</div>}
+          {success && <div className="success-message">{success}</div>}
 
-          <button
-            className="login-button"
-            onClick={handleLogin}
-            disabled={isLoading}
-          >
-            {isLoading ? '验证中...' : '登录验证'}
-          </button>
+          <div className="button-group">
+            <button
+              className="login-button"
+              onClick={handleLogin}
+              disabled={isLoading || isUnbinding}
+            >
+              {isLoading ? '验证中...' : '登录验证'}
+            </button>
+            <button
+              className="unbind-button"
+              onClick={handleUnbind}
+              disabled={isLoading || isUnbinding}
+            >
+              {isUnbinding ? '解绑中...' : '解绑卡密'}
+            </button>
+          </div>
         </div>
 
         <div className="device-info">

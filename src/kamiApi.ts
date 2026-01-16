@@ -65,13 +65,20 @@ export async function kamiLogin(kami: string): Promise<{ success: boolean; messa
 }
 
 // 卡密解绑
-export async function kamiUnbind(): Promise<{ success: boolean; message: string }> {
+export async function kamiUnbind(kamiToUnbind?: string): Promise<{ success: boolean; message: string }> {
   try {
     const deviceCode = getDeviceCode();
-    const savedKami = getSavedKami();
+    const kami = kamiToUnbind || getSavedKami();
+    
+    if (!kami) {
+      return {
+        success: false,
+        message: '请输入要解绑的卡密'
+      };
+    }
     
     const result: KamiResponse = await invoke('kami_unbind', {
-      kami: savedKami,
+      kami: kami,
       markcode: deviceCode
     });
     
