@@ -1403,7 +1403,11 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
     
     println!("[卡密验证] JSON: {:?}", json);
     
-    let code = json["code"].as_i64().unwrap_or(0);
+    // code 是字符串类型，如 "200", "148" 等
+    let code_str = json["code"].as_str().unwrap_or("");
+    let code: i64 = code_str.parse().unwrap_or(0);
+    
+    println!("[卡密验证] 错误码字符串: {}, 解析后: {}", code_str, code);
     
     if code == 200 {
         // 成功时 msg 是对象 {"kami": "xxx", "vip": "timestamp"}
