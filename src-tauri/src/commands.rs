@@ -1417,30 +1417,34 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
             vip_expire_time: vip,
         })
     } else {
-        // 失败时 msg 可能是字符串或其他
-        let msg = if let Some(s) = json["msg"].as_str() {
-            s.to_string()
-        } else if let Some(obj) = json["msg"].as_object() {
-            format!("{:?}", obj)
-        } else {
-            match code {
-                101 => "应用不存在".to_string(),
-                102 => "应用已关闭".to_string(),
-                171 => "接口维护中".to_string(),
-                172 => "接口未添加或不存在".to_string(),
-                104 => "签名为空".to_string(),
-                105 => "数据过期".to_string(),
-                106 => "签名有误".to_string(),
-                148 => "卡密为空".to_string(),
-                149 => "卡密不存在".to_string(),
-                151 => "卡密禁用".to_string(),
-                169 => "IP不一致".to_string(),
-                _ => format!("验证失败(错误码:{})", code),
+        // 根据错误码返回对应的错误消息
+        let msg = match code {
+            101 => "应用不存在",
+            102 => "应用已关闭",
+            104 => "签名为空",
+            105 => "数据过期",
+            106 => "签名有误",
+            148 => "卡密为空",
+            149 => "卡密不存在",
+            151 => "卡密禁用",
+            169 => "IP不一致",
+            171 => "接口维护中",
+            172 => "接口未添加或不存在",
+            _ => {
+                // 尝试从 msg 字段获取错误信息
+                if let Some(s) = json["msg"].as_str() {
+                    return Ok(KamiLoginResponse {
+                        success: false,
+                        message: s.to_string(),
+                        vip_expire_time: None,
+                    });
+                }
+                "验证失败"
             }
         };
         Ok(KamiLoginResponse {
             success: false,
-            message: msg,
+            message: format!("{} (错误码:{})", msg, code),
             vip_expire_time: None,
         })
     }
