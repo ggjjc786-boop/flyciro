@@ -434,17 +434,35 @@ async fn perform_registration(
 
 fn generate_secure_password() -> String {
     use rand::Rng;
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
     let mut rng = rand::thread_rng();
-
-    let password: String = (0..16)
-        .map(|_| {
-            let idx = rng.gen_range(0..CHARSET.len());
-            CHARSET[idx] as char
-        })
-        .collect();
-
-    password
+    
+    const UPPERCASE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const LOWERCASE: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
+    const DIGITS: &[u8] = b"0123456789";
+    const ALL_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    
+    // 确保包含至少一个大写、一个小写、一个数字和一个感叹号
+    let mut password_chars: Vec<char> = Vec::with_capacity(16);
+    
+    // 添加必需的字符
+    password_chars.push(UPPERCASE[rng.gen_range(0..UPPERCASE.len())] as char);
+    password_chars.push(LOWERCASE[rng.gen_range(0..LOWERCASE.len())] as char);
+    password_chars.push(DIGITS[rng.gen_range(0..DIGITS.len())] as char);
+    password_chars.push('!');
+    
+    // 填充剩余字符
+    for _ in 0..12 {
+        let idx = rng.gen_range(0..ALL_CHARS.len());
+        password_chars.push(ALL_CHARS[idx] as char);
+    }
+    
+    // 打乱顺序
+    for i in (1..password_chars.len()).rev() {
+        let j = rng.gen_range(0..=i);
+        password_chars.swap(i, j);
+    }
+    
+    password_chars.into_iter().collect()
 }
 
 #[tauri::command]
