@@ -1297,6 +1297,49 @@ async fn perform_browser_authorization(
 
 // ============ 卡密验证相关命令 ============
 
+// RC4 解密函数
+fn rc4_decrypt(key: &str, hex_data: &str) -> Result<String, String> {
+    // 将十六进制字符串转换为字节
+    let mut data = Vec::new();
+    let mut i = 0;
+    while i < hex_data.len() {
+        if i + 2 <= hex_data.len() {
+            let byte = u8::from_str_radix(&hex_data[i..i+2], 16)
+                .map_err(|_| "无效的十六进制数据")?;
+            data.push(byte);
+            i += 2;
+        } else {
+            break;
+        }
+    }
+    
+    // RC4 解密
+    let key_bytes = key.as_bytes();
+    let mut s: Vec<u8> = (0..=255).collect();
+    let mut j: usize = 0;
+    
+    // KSA (Key Scheduling Algorithm)
+    for i in 0..256 {
+        j = (j + s[i] as usize + key_bytes[i % key_bytes.len()] as usize) % 256;
+        s.swap(i, j);
+    }
+    
+    // PRGA (Pseudo-Random Generation Algorithm)
+    let mut i: usize = 0;
+    j = 0;
+    let mut result = Vec::new();
+    
+    for byte in data {
+        i = (i + 1) % 256;
+        j = (j + s[i] as usize) % 256;
+        s.swap(i, j);
+        let t = (s[i] as usize + s[j] as usize) % 256;
+        result.push(byte ^ s[t]);
+    }
+    
+    String::from_utf8(result).map_err(|_| "解密后的数据不是有效的UTF-8".to_string())
+}
+
 #[derive(serde::Deserialize)]
 pub struct KamiLoginRequest {
     pub kami: String,
@@ -1309,6 +1352,8 @@ pub struct KamiLoginResponse {
     pub message: String,
     pub vip_expire_time: Option<i64>,
 }
+
+const RC4_KEY: &str = "8HacPHMcsWK10002";
 
 /// 卡密登录验证
 #[tauri::command]
@@ -1333,14 +1378,22 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
         .await
         .map_err(|e| format!("网络请求失败: {}", e))?;
     
-    // 先获取文本内容
+    // 获取原始响应文本
     let text = response.text()
         .await
         .map_err(|e| format!("读取响应失败: {}", e))?;
     
+    // 尝试直接解析 JSON，如果失败则尝试 RC4 解密
+    let json_str = if text.starts_with('{') {
+        text.clone()
+    } else {
+        // RC4 解密
+        rc4_decrypt(RC4_KEY, &text)?
+    };
+    
     // 解析 JSON
-    let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| format!("解析JSON失败: {} - 原始响应: {}", e, text))?;
+    let json: serde_json::Value = serde_json::from_str(&json_str)
+        .map_err(|e| format!("解析JSON失败: {} - 解密后: {}", e, json_str))?;
     
     let code = json["code"].as_i64().unwrap_or(0);
     
@@ -1356,7 +1409,7 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
             vip_expire_time: vip,
         })
     } else {
-        // 失败时 msg 是字符串，根据错误码返回对应消息
+        // 失败时 msg 是字符串
         let msg = json["msg"].as_str().map(|s| s.to_string()).unwrap_or_else(|| {
             match code {
                 101 => "应用不存在".to_string(),
@@ -1407,11 +1460,17 @@ pub async fn kami_unbind(markcode: String) -> Result<KamiLoginResponse, String> 
         .await
         .map_err(|e| format!("读取响应失败: {}", e))?;
     
-    let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| format!("解析JSON失败: {} - 原始响应: {}", e, text))?;
+    // 尝试直接解析 JSON，如果失败则尝试 RC4 解密
+    let json_str = if text.starts_with('{') {
+        text.clone()
+    } else {
+        rc4_decrypt(RC4_KEY, &text)?
+    };
+    
+    let json: serde_json::Value = serde_json::from_str(&json_str)
+        .map_err(|e| format!("解析JSON失败: {}", e))?;
     
     let code = json["code"].as_i64().unwrap_or(0);
-    // 解绑接口的 msg 是字符串
     let msg = json["msg"].as_str().unwrap_or("操作完成").to_string();
     
     Ok(KamiLoginResponse {
@@ -1441,8 +1500,15 @@ pub async fn get_notice() -> Result<String, String> {
         .await
         .map_err(|e| format!("读取响应失败: {}", e))?;
     
-    let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|_| "".to_string())?;
+    // 尝试直接解析 JSON，如果失败则尝试 RC4 解密
+    let json_str = if text.starts_with('{') {
+        text.clone()
+    } else {
+        rc4_decrypt(RC4_KEY, &text).unwrap_or_default()
+    };
+    
+    let json: serde_json::Value = serde_json::from_str(&json_str)
+        .unwrap_or(serde_json::Value::Null);
     
     let code = json["code"].as_i64().unwrap_or(0);
     
