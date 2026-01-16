@@ -3,9 +3,8 @@
 
 const API_BASE = 'https://zh.xphdfs.me/api.php';
 const APP_ID = '10002';  // 应用APPID
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const APP_KEY = 'DxhTVxT08L0AD3Dx';  // 应用密钥（预留）
 const RC4_KEY = '8HacPHMcsWK10002';  // RC4密钥
+// APP_KEY: DxhTVxT08L0AD3Dx (保留备用)
 
 // RC4加密/解密
 function rc4(key: string, data: string): string {
