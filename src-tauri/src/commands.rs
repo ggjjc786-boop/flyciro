@@ -1333,15 +1333,22 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
         .await
         .map_err(|e| format!("网络请求失败: {}", e))?;
     
-    let json: serde_json::Value = response.json()
+    // 先获取文本内容
+    let text = response.text()
         .await
-        .map_err(|e| format!("解析响应失败: {}", e))?;
+        .map_err(|e| format!("读取响应失败: {}", e))?;
+    
+    // 解析 JSON
+    let json: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("解析JSON失败: {} - 原始响应: {}", e, text))?;
     
     let code = json["code"].as_i64().unwrap_or(0);
     
     if code == 200 {
+        // 成功时 msg 是对象 {"kami": "xxx", "vip": "timestamp"}
         let vip = json["msg"]["vip"].as_str()
-            .and_then(|s| s.parse::<i64>().ok());
+            .and_then(|s| s.parse::<i64>().ok())
+            .or_else(|| json["msg"]["vip"].as_i64());
         
         Ok(KamiLoginResponse {
             success: true,
@@ -1349,7 +1356,23 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
             vip_expire_time: vip,
         })
     } else {
-        let msg = json["msg"].as_str().unwrap_or("验证失败").to_string();
+        // 失败时 msg 是字符串，根据错误码返回对应消息
+        let msg = json["msg"].as_str().map(|s| s.to_string()).unwrap_or_else(|| {
+            match code {
+                101 => "应用不存在".to_string(),
+                102 => "应用已关闭".to_string(),
+                171 => "接口维护中".to_string(),
+                172 => "接口未添加或不存在".to_string(),
+                104 => "签名为空".to_string(),
+                105 => "数据过期".to_string(),
+                106 => "签名有误".to_string(),
+                148 => "卡密为空".to_string(),
+                149 => "卡密不存在".to_string(),
+                151 => "卡密禁用".to_string(),
+                169 => "IP不一致".to_string(),
+                _ => format!("验证失败(错误码:{})", code),
+            }
+        });
         Ok(KamiLoginResponse {
             success: false,
             message: msg,
@@ -1380,11 +1403,15 @@ pub async fn kami_unbind(markcode: String) -> Result<KamiLoginResponse, String> 
         .await
         .map_err(|e| format!("网络请求失败: {}", e))?;
     
-    let json: serde_json::Value = response.json()
+    let text = response.text()
         .await
-        .map_err(|e| format!("解析响应失败: {}", e))?;
+        .map_err(|e| format!("读取响应失败: {}", e))?;
+    
+    let json: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("解析JSON失败: {} - 原始响应: {}", e, text))?;
     
     let code = json["code"].as_i64().unwrap_or(0);
+    // 解绑接口的 msg 是字符串
     let msg = json["msg"].as_str().unwrap_or("操作完成").to_string();
     
     Ok(KamiLoginResponse {
@@ -1410,9 +1437,12 @@ pub async fn get_notice() -> Result<String, String> {
         .await
         .map_err(|e| format!("网络请求失败: {}", e))?;
     
-    let json: serde_json::Value = response.json()
+    let text = response.text()
         .await
-        .map_err(|e| format!("解析响应失败: {}", e))?;
+        .map_err(|e| format!("读取响应失败: {}", e))?;
+    
+    let json: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|_| "".to_string())?;
     
     let code = json["code"].as_i64().unwrap_or(0);
     
