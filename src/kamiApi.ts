@@ -3,7 +3,8 @@
 
 const API_BASE = 'https://zh.xphdfs.me/api.php';
 const APP_ID = '10002';  // 应用APPID
-const APP_KEY = 'DxhTVxT08L0AD3Dx';  // 应用密钥
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const APP_KEY = 'DxhTVxT08L0AD3Dx';  // 应用密钥（预留）
 const RC4_KEY = '8HacPHMcsWK10002';  // RC4密钥
 
 // RC4加密/解密
@@ -12,18 +13,15 @@ function rc4(key: string, data: string): string {
   let j = 0;
   let result = '';
 
-  // 初始化S盒
   for (let i = 0; i < 256; i++) {
     s[i] = i;
   }
 
-  // 密钥调度算法
   for (let i = 0; i < 256; i++) {
     j = (j + s[i] + key.charCodeAt(i % key.length)) % 256;
     [s[i], s[j]] = [s[j], s[i]];
   }
 
-  // 伪随机生成算法
   let i = 0;
   j = 0;
   for (let k = 0; k < data.length; k++) {
@@ -37,8 +35,8 @@ function rc4(key: string, data: string): string {
   return result;
 }
 
-// RC4加密并转为十六进制
-function rc4Encrypt(data: string): string {
+// RC4加密并转为十六进制（导出供外部使用）
+export function rc4Encrypt(data: string): string {
   const encrypted = rc4(RC4_KEY, data);
   let hex = '';
   for (let i = 0; i < encrypted.length; i++) {
@@ -47,8 +45,8 @@ function rc4Encrypt(data: string): string {
   return hex;
 }
 
-// 从十六进制解密
-function rc4Decrypt(hexData: string): string {
+// 从十六进制解密（导出供外部使用）
+export function rc4Decrypt(hexData: string): string {
   let data = '';
   for (let i = 0; i < hexData.length; i += 2) {
     data += String.fromCharCode(parseInt(hexData.substr(i, 2), 16));
