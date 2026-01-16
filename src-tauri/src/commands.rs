@@ -1297,34 +1297,19 @@ async fn perform_browser_authorization(
 
 // ============ 卡密验证相关命令 ============
 
-// RC4 解密函数
-fn rc4_decrypt(key: &str, hex_data: &str) -> Result<String, String> {
-    // 将十六进制字符串转换为字节
-    let mut data = Vec::new();
-    let mut i = 0;
-    while i < hex_data.len() {
-        if i + 2 <= hex_data.len() {
-            let byte = u8::from_str_radix(&hex_data[i..i+2], 16)
-                .map_err(|_| "无效的十六进制数据")?;
-            data.push(byte);
-            i += 2;
-        } else {
-            break;
-        }
-    }
-    
-    // RC4 解密
+// RC4 加密/解密函数
+fn rc4(key: &str, data: &[u8]) -> Vec<u8> {
     let key_bytes = key.as_bytes();
     let mut s: Vec<u8> = (0..=255).collect();
     let mut j: usize = 0;
     
-    // KSA (Key Scheduling Algorithm)
+    // KSA
     for i in 0..256 {
         j = (j + s[i] as usize + key_bytes[i % key_bytes.len()] as usize) % 256;
         s.swap(i, j);
     }
     
-    // PRGA (Pseudo-Random Generation Algorithm)
+    // PRGA
     let mut i: usize = 0;
     j = 0;
     let mut result = Vec::new();
@@ -1337,13 +1322,48 @@ fn rc4_decrypt(key: &str, hex_data: &str) -> Result<String, String> {
         result.push(byte ^ s[t]);
     }
     
-    String::from_utf8(result).map_err(|_| "解密后的数据不是有效的UTF-8".to_string())
+    result
 }
 
-#[derive(serde::Deserialize)]
-pub struct KamiLoginRequest {
-    pub kami: String,
-    pub markcode: String,
+// RC4 加密并转为十六进制
+fn rc4_encrypt(key: &str, data: &str) -> String {
+    let encrypted = rc4(key, data.as_bytes());
+    encrypted.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
+// RC4 解密（从十六进制）
+fn rc4_decrypt_hex(key: &str, hex_data: &str) -> Result<String, String> {
+    // 将十六进制字符串转换为字节
+    let mut data = Vec::new();
+    let mut i = 0;
+    while i + 2 <= hex_data.len() {
+        let byte = u8::from_str_radix(&hex_data[i..i+2], 16)
+            .map_err(|_| "无效的十六进制数据")?;
+        data.push(byte);
+        i += 2;
+    }
+    
+    let decrypted = rc4(key, &data);
+    
+    // 尝试 UTF-8 解码
+    String::from_utf8(decrypted.clone())
+        .or_else(|_| {
+            // 尝试解码为 escape 序列
+            let s: String = decrypted.iter().map(|&b| b as char).collect();
+            Ok(s)
+        })
+        .map_err(|e: std::string::FromUtf8Error| e.to_string())
+}
+
+// 计算 MD5
+fn md5_hash(data: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    
+    // 使用简单的方式计算，实际应该用 md5 crate
+    // 这里我们用 reqwest 自带的功能或者手动实现
+    let digest = md5::compute(data.as_bytes());
+    format!("{:x}", digest)
 }
 
 #[derive(serde::Serialize)]
@@ -1353,26 +1373,46 @@ pub struct KamiLoginResponse {
     pub vip_expire_time: Option<i64>,
 }
 
+const APP_ID: &str = "10002";
+const APP_KEY: &str = "DxhTVxT08L0AD3Dx";
 const RC4_KEY: &str = "8HacPHMcsWK10002";
+const API_URL: &str = "https://zh.xphdfs.me/api.php";
+
+/// 获取时间戳
+fn get_timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+}
 
 /// 卡密登录验证
 #[tauri::command]
 pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginResponse, String> {
-    let app_id = "10002";
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
+    let timestamp = get_timestamp();
     
-    let url = format!(
-        "https://zh.xphdfs.me/api.php?api=kmlogon&app={}&kami={}&markcode={}&t={}",
-        app_id,
-        urlencoding::encode(&kami),
-        urlencoding::encode(&markcode),
-        timestamp
+    // 计算 Random 值: MD5(t + key + markcode)
+    let random_str = format!("{}{}{}", timestamp, APP_KEY, markcode);
+    let random = md5_hash(&random_str);
+    
+    // 计算签名: MD5(kami=xxx&markcode=xxx&t=xxx&key)
+    let sign_str = format!("kami={}&markcode={}&t={}&{}", kami, markcode, timestamp, APP_KEY);
+    let sign = md5_hash(&sign_str);
+    
+    // 构建要加密的数据
+    let plain_data = format!(
+        "kami={}&markcode={}&t={}&sign={}&value={}",
+        kami, markcode, timestamp, sign, random
     );
     
-    println!("[卡密验证] 请求URL: {}", url);
+    // RC4 加密
+    let encrypted_data = rc4_encrypt(RC4_KEY, &plain_data);
+    
+    // 构建请求 URL
+    let url = format!(
+        "{}?api=kmlogon&app={}&data={}",
+        API_URL, APP_ID, encrypted_data
+    );
     
     let client = reqwest::Client::new();
     let response = client.get(&url)
@@ -1380,37 +1420,43 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
         .await
         .map_err(|e| format!("网络请求失败: {}", e))?;
     
-    // 获取原始响应文本
     let text = response.text()
         .await
         .map_err(|e| format!("读取响应失败: {}", e))?;
     
-    println!("[卡密验证] 原始响应: {}", text);
-    
-    // 尝试直接解析 JSON，如果失败则尝试 RC4 解密
+    // RC4 解密响应
     let json_str = if text.starts_with('{') {
-        text.clone()
+        text
     } else {
-        // RC4 解密
-        let decrypted = rc4_decrypt(RC4_KEY, &text)?;
-        println!("[卡密验证] 解密后: {}", decrypted);
-        decrypted
+        rc4_decrypt_hex(RC4_KEY, &text)?
     };
     
     // 解析 JSON
     let json: serde_json::Value = serde_json::from_str(&json_str)
-        .map_err(|e| format!("解析JSON失败: {} - 内容: {}", e, json_str))?;
+        .map_err(|e| format!("解析JSON失败: {}", e))?;
     
-    println!("[卡密验证] JSON: {:?}", json);
-    
-    // code 是字符串类型，如 "200", "148" 等
-    let code_str = json["code"].as_str().unwrap_or("");
-    let code: i64 = code_str.parse().unwrap_or(0);
-    
-    println!("[卡密验证] 错误码字符串: {}, 解析后: {}", code_str, code);
+    // code 可能是字符串或数字
+    let code: i64 = json["code"].as_str()
+        .and_then(|s| s.parse().ok())
+        .or_else(|| json["code"].as_i64())
+        .unwrap_or(0);
     
     if code == 200 {
-        // 成功时 msg 是对象 {"kami": "xxx", "vip": "timestamp"}
+        // 验证数据签名: MD5(time + key + random)
+        let check_str = format!("{}{}{}", json["time"].as_i64().unwrap_or(0), APP_KEY, random);
+        let check = md5_hash(&check_str);
+        
+        if let Some(server_check) = json["check"].as_str() {
+            if check != server_check {
+                return Ok(KamiLoginResponse {
+                    success: false,
+                    message: "数据验证失败".to_string(),
+                    vip_expire_time: None,
+                });
+            }
+        }
+        
+        // 获取 VIP 到期时间
         let vip = json["msg"]["vip"].as_str()
             .and_then(|s| s.parse::<i64>().ok())
             .or_else(|| json["msg"]["vip"].as_i64());
@@ -1421,7 +1467,6 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
             vip_expire_time: vip,
         })
     } else {
-        // 根据错误码返回对应的错误消息
         let msg = match code {
             101 => "应用不存在",
             102 => "应用已关闭",
@@ -1435,7 +1480,6 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
             171 => "接口维护中",
             172 => "接口未添加或不存在",
             _ => {
-                // 尝试从 msg 字段获取错误信息
                 if let Some(s) = json["msg"].as_str() {
                     return Ok(KamiLoginResponse {
                         success: false,
@@ -1448,7 +1492,7 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
         };
         Ok(KamiLoginResponse {
             success: false,
-            message: format!("{} (错误码:{})", msg, code),
+            message: msg.to_string(),
             vip_expire_time: None,
         })
     }
@@ -1456,18 +1500,25 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
 
 /// 卡密解绑
 #[tauri::command]
-pub async fn kami_unbind(markcode: String) -> Result<KamiLoginResponse, String> {
-    let app_id = "10002";
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
+pub async fn kami_unbind(kami: String, markcode: String) -> Result<KamiLoginResponse, String> {
+    let timestamp = get_timestamp();
+    
+    let random_str = format!("{}{}{}", timestamp, APP_KEY, markcode);
+    let random = md5_hash(&random_str);
+    
+    let sign_str = format!("kami={}&markcode={}&t={}&{}", kami, markcode, timestamp, APP_KEY);
+    let sign = md5_hash(&sign_str);
+    
+    let plain_data = format!(
+        "kami={}&markcode={}&t={}&sign={}&value={}",
+        kami, markcode, timestamp, sign, random
+    );
+    
+    let encrypted_data = rc4_encrypt(RC4_KEY, &plain_data);
     
     let url = format!(
-        "https://zh.xphdfs.me/api.php?api=kmunmachine&app={}&markcode={}&t={}",
-        app_id,
-        urlencoding::encode(&markcode),
-        timestamp
+        "{}?api=kmunmachine&app={}&data={}",
+        API_URL, APP_ID, encrypted_data
     );
     
     let client = reqwest::Client::new();
@@ -1480,17 +1531,20 @@ pub async fn kami_unbind(markcode: String) -> Result<KamiLoginResponse, String> 
         .await
         .map_err(|e| format!("读取响应失败: {}", e))?;
     
-    // 尝试直接解析 JSON，如果失败则尝试 RC4 解密
     let json_str = if text.starts_with('{') {
-        text.clone()
+        text
     } else {
-        rc4_decrypt(RC4_KEY, &text)?
+        rc4_decrypt_hex(RC4_KEY, &text)?
     };
     
     let json: serde_json::Value = serde_json::from_str(&json_str)
         .map_err(|e| format!("解析JSON失败: {}", e))?;
     
-    let code = json["code"].as_i64().unwrap_or(0);
+    let code: i64 = json["code"].as_str()
+        .and_then(|s| s.parse().ok())
+        .or_else(|| json["code"].as_i64())
+        .unwrap_or(0);
+    
     let msg = json["msg"].as_str().unwrap_or("操作完成").to_string();
     
     Ok(KamiLoginResponse {
@@ -1503,12 +1557,7 @@ pub async fn kami_unbind(markcode: String) -> Result<KamiLoginResponse, String> 
 /// 获取公告
 #[tauri::command]
 pub async fn get_notice() -> Result<String, String> {
-    let app_id = "10002";
-    
-    let url = format!(
-        "https://zh.xphdfs.me/api.php?api=notice&app={}",
-        app_id
-    );
+    let url = format!("{}?api=notice&app={}", API_URL, APP_ID);
     
     let client = reqwest::Client::new();
     let response = client.get(&url)
@@ -1520,21 +1569,22 @@ pub async fn get_notice() -> Result<String, String> {
         .await
         .map_err(|e| format!("读取响应失败: {}", e))?;
     
-    // 尝试直接解析 JSON，如果失败则尝试 RC4 解密
     let json_str = if text.starts_with('{') {
-        text.clone()
+        text
     } else {
-        rc4_decrypt(RC4_KEY, &text).unwrap_or_default()
+        rc4_decrypt_hex(RC4_KEY, &text).unwrap_or_default()
     };
     
     let json: serde_json::Value = serde_json::from_str(&json_str)
         .unwrap_or(serde_json::Value::Null);
     
-    let code = json["code"].as_i64().unwrap_or(0);
+    let code: i64 = json["code"].as_str()
+        .and_then(|s| s.parse().ok())
+        .or_else(|| json["code"].as_i64())
+        .unwrap_or(0);
     
     if code == 200 {
-        let notice = json["msg"]["app_gg"].as_str().unwrap_or("").to_string();
-        Ok(notice)
+        Ok(json["msg"]["app_gg"].as_str().unwrap_or("").to_string())
     } else {
         Ok("".to_string())
     }

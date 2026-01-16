@@ -35,4 +35,5 @@ uuid = { version = "1", features = ["v4", "serde"] }
 anyhow = "1"
 thiserror = "1"
 urlencoding = "2"
+md5 = "0.7"
 

@@ -68,8 +68,10 @@ export async function kamiLogin(kami: string): Promise<{ success: boolean; messa
 export async function kamiUnbind(): Promise<{ success: boolean; message: string }> {
   try {
     const deviceCode = getDeviceCode();
+    const savedKami = getSavedKami();
     
     const result: KamiResponse = await invoke('kami_unbind', {
+      kami: savedKami,
       markcode: deviceCode
     });
     
