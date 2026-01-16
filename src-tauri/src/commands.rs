@@ -1372,6 +1372,8 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
         timestamp
     );
     
+    println!("[卡密验证] 请求URL: {}", url);
+    
     let client = reqwest::Client::new();
     let response = client.get(&url)
         .send()
@@ -1383,17 +1385,23 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
         .await
         .map_err(|e| format!("读取响应失败: {}", e))?;
     
+    println!("[卡密验证] 原始响应: {}", text);
+    
     // 尝试直接解析 JSON，如果失败则尝试 RC4 解密
     let json_str = if text.starts_with('{') {
         text.clone()
     } else {
         // RC4 解密
-        rc4_decrypt(RC4_KEY, &text)?
+        let decrypted = rc4_decrypt(RC4_KEY, &text)?;
+        println!("[卡密验证] 解密后: {}", decrypted);
+        decrypted
     };
     
     // 解析 JSON
     let json: serde_json::Value = serde_json::from_str(&json_str)
-        .map_err(|e| format!("解析JSON失败: {} - 解密后: {}", e, json_str))?;
+        .map_err(|e| format!("解析JSON失败: {} - 内容: {}", e, json_str))?;
+    
+    println!("[卡密验证] JSON: {:?}", json);
     
     let code = json["code"].as_i64().unwrap_or(0);
     
@@ -1409,8 +1417,12 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
             vip_expire_time: vip,
         })
     } else {
-        // 失败时 msg 是字符串
-        let msg = json["msg"].as_str().map(|s| s.to_string()).unwrap_or_else(|| {
+        // 失败时 msg 可能是字符串或其他
+        let msg = if let Some(s) = json["msg"].as_str() {
+            s.to_string()
+        } else if let Some(obj) = json["msg"].as_object() {
+            format!("{:?}", obj)
+        } else {
             match code {
                 101 => "应用不存在".to_string(),
                 102 => "应用已关闭".to_string(),
@@ -1425,7 +1437,7 @@ pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginRespo
                 169 => "IP不一致".to_string(),
                 _ => format!("验证失败(错误码:{})", code),
             }
-        });
+        };
         Ok(KamiLoginResponse {
             success: false,
             message: msg,
