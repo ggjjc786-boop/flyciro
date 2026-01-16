@@ -1293,3 +1293,133 @@ async fn perform_browser_authorization(
     Ok(())
 }
 
+
+
+// ============ 卡密验证相关命令 ============
+
+#[derive(serde::Deserialize)]
+pub struct KamiLoginRequest {
+    pub kami: String,
+    pub markcode: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct KamiLoginResponse {
+    pub success: bool,
+    pub message: String,
+    pub vip_expire_time: Option<i64>,
+}
+
+/// 卡密登录验证
+#[tauri::command]
+pub async fn kami_login(kami: String, markcode: String) -> Result<KamiLoginResponse, String> {
+    let app_id = "10002";
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
+    let url = format!(
+        "https://zh.xphdfs.me/api.php?api=kmlogon&app={}&kami={}&markcode={}&t={}",
+        app_id,
+        urlencoding::encode(&kami),
+        urlencoding::encode(&markcode),
+        timestamp
+    );
+    
+    let client = reqwest::Client::new();
+    let response = client.get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("网络请求失败: {}", e))?;
+    
+    let json: serde_json::Value = response.json()
+        .await
+        .map_err(|e| format!("解析响应失败: {}", e))?;
+    
+    let code = json["code"].as_i64().unwrap_or(0);
+    
+    if code == 200 {
+        let vip = json["msg"]["vip"].as_str()
+            .and_then(|s| s.parse::<i64>().ok());
+        
+        Ok(KamiLoginResponse {
+            success: true,
+            message: "验证成功".to_string(),
+            vip_expire_time: vip,
+        })
+    } else {
+        let msg = json["msg"].as_str().unwrap_or("验证失败").to_string();
+        Ok(KamiLoginResponse {
+            success: false,
+            message: msg,
+            vip_expire_time: None,
+        })
+    }
+}
+
+/// 卡密解绑
+#[tauri::command]
+pub async fn kami_unbind(markcode: String) -> Result<KamiLoginResponse, String> {
+    let app_id = "10002";
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
+    let url = format!(
+        "https://zh.xphdfs.me/api.php?api=kmunmachine&app={}&markcode={}&t={}",
+        app_id,
+        urlencoding::encode(&markcode),
+        timestamp
+    );
+    
+    let client = reqwest::Client::new();
+    let response = client.get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("网络请求失败: {}", e))?;
+    
+    let json: serde_json::Value = response.json()
+        .await
+        .map_err(|e| format!("解析响应失败: {}", e))?;
+    
+    let code = json["code"].as_i64().unwrap_or(0);
+    let msg = json["msg"].as_str().unwrap_or("操作完成").to_string();
+    
+    Ok(KamiLoginResponse {
+        success: code == 200,
+        message: msg,
+        vip_expire_time: None,
+    })
+}
+
+/// 获取公告
+#[tauri::command]
+pub async fn get_notice() -> Result<String, String> {
+    let app_id = "10002";
+    
+    let url = format!(
+        "https://zh.xphdfs.me/api.php?api=notice&app={}",
+        app_id
+    );
+    
+    let client = reqwest::Client::new();
+    let response = client.get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("网络请求失败: {}", e))?;
+    
+    let json: serde_json::Value = response.json()
+        .await
+        .map_err(|e| format!("解析响应失败: {}", e))?;
+    
+    let code = json["code"].as_i64().unwrap_or(0);
+    
+    if code == 200 {
+        let notice = json["msg"]["app_gg"].as_str().unwrap_or("").to_string();
+        Ok(notice)
+    } else {
+        Ok("".to_string())
+    }
+}

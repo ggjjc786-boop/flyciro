@@ -1,124 +1,47 @@
-// 极简云卡密验证 API
-// 接口地址: https://zh.xphdfs.me/api.php
-
-const API_BASE = 'https://zh.xphdfs.me/api.php';
-const APP_ID = '10002';  // 应用APPID
-const RC4_KEY = '8HacPHMcsWK10002';  // RC4密钥
-// APP_KEY: DxhTVxT08L0AD3Dx (保留备用)
-
-// RC4加密/解密
-function rc4(key: string, data: string): string {
-  const s: number[] = [];
-  let j = 0;
-  let result = '';
-
-  for (let i = 0; i < 256; i++) {
-    s[i] = i;
-  }
-
-  for (let i = 0; i < 256; i++) {
-    j = (j + s[i] + key.charCodeAt(i % key.length)) % 256;
-    [s[i], s[j]] = [s[j], s[i]];
-  }
-
-  let i = 0;
-  j = 0;
-  for (let k = 0; k < data.length; k++) {
-    i = (i + 1) % 256;
-    j = (j + s[i]) % 256;
-    [s[i], s[j]] = [s[j], s[i]];
-    const t = (s[i] + s[j]) % 256;
-    result += String.fromCharCode(data.charCodeAt(k) ^ s[t]);
-  }
-
-  return result;
-}
-
-// RC4加密并转为十六进制（导出供外部使用）
-export function rc4Encrypt(data: string): string {
-  const encrypted = rc4(RC4_KEY, data);
-  let hex = '';
-  for (let i = 0; i < encrypted.length; i++) {
-    hex += encrypted.charCodeAt(i).toString(16).padStart(2, '0');
-  }
-  return hex;
-}
-
-// 从十六进制解密（导出供外部使用）
-export function rc4Decrypt(hexData: string): string {
-  let data = '';
-  for (let i = 0; i < hexData.length; i += 2) {
-    data += String.fromCharCode(parseInt(hexData.substr(i, 2), 16));
-  }
-  return rc4(RC4_KEY, data);
-}
+// 极简云卡密验证 API - 通过 Tauri 后端调用
+import { invoke } from '@tauri-apps/api/core';
 
 // 生成设备码
 export function getDeviceCode(): string {
   let deviceCode = localStorage.getItem('device_code');
   if (!deviceCode) {
-    // 生成唯一设备码
-    deviceCode = 'DEV_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 9);
+    deviceCode = 'DEV_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 11);
     localStorage.setItem('device_code', deviceCode);
   }
   return deviceCode;
 }
 
-// 卡密验证响应
-export interface KamiLoginResponse {
-  code: number;
-  msg: {
-    kami: string;
-    vip: string;  // 到期时间戳
-  } | string;
-  time: number;
-  check: string;
-}
-
-// 解绑响应
-export interface KamiUnbindResponse {
-  code: number;
-  msg: string;
-  time: number;
-  check: string;
-}
-
-// 公告响应
-export interface NoticeResponse {
-  code: number;
-  msg: {
-    app_gg: string;
-  };
-  time: number;
-  check: string;
-}
-
 // 验证信息
 export interface VerifyInfo {
   kami: string;
-  vipExpireTime: number;  // 到期时间戳
-  verifyTime: number;     // 验证时间
+  vipExpireTime: number;
+  verifyTime: number;
+}
+
+// 后端响应类型
+interface KamiResponse {
+  success: boolean;
+  message: string;
+  vip_expire_time: number | null;
 }
 
 // 卡密登录验证
 export async function kamiLogin(kami: string): Promise<{ success: boolean; message: string; data?: VerifyInfo }> {
   try {
     const deviceCode = getDeviceCode();
-    const timestamp = Math.floor(Date.now() / 1000);
     
-    const url = `${API_BASE}?api=kmlogon&app=${APP_ID}&kami=${encodeURIComponent(kami)}&markcode=${encodeURIComponent(deviceCode)}&t=${timestamp}`;
+    const result: KamiResponse = await invoke('kami_login', {
+      kami: kami,
+      markcode: deviceCode
+    });
     
-    const response = await fetch(url);
-    const result: KamiLoginResponse = await response.json();
-    
-    if (result.code === 200 && typeof result.msg === 'object') {
+    if (result.success && result.vip_expire_time) {
       const verifyInfo: VerifyInfo = {
-        kami: result.msg.kami,
-        vipExpireTime: parseInt(result.msg.vip),
-        verifyTime: result.time
+        kami: kami,
+        vipExpireTime: result.vip_expire_time,
+        verifyTime: Math.floor(Date.now() / 1000)
       };
       
-      // 保存验证信息到本地
       localStorage.setItem('kami_verify', JSON.stringify(verifyInfo));
       localStorage.setItem('kami_value', kami);
       
@@ -128,16 +51,15 @@ export async function kamiLogin(kami: string): Promise<{ success: boolean; messa
         data: verifyInfo
       };
     } else {
-      const errorMsg = typeof result.msg === 'string' ? result.msg : '验证失败';
       return {
         success: false,
-        message: errorMsg
+        message: result.message || '验证失败'
       };
     }
   } catch (error) {
     return {
       success: false,
-      message: `网络错误: ${error}`
+      message: `验证错误: ${error}`
     };
   }
 }
@@ -146,32 +68,24 @@ export async function kamiLogin(kami: string): Promise<{ success: boolean; messa
 export async function kamiUnbind(): Promise<{ success: boolean; message: string }> {
   try {
     const deviceCode = getDeviceCode();
-    const timestamp = Math.floor(Date.now() / 1000);
     
-    const url = `${API_BASE}?api=kmunmachine&app=${APP_ID}&markcode=${encodeURIComponent(deviceCode)}&t=${timestamp}`;
+    const result: KamiResponse = await invoke('kami_unbind', {
+      markcode: deviceCode
+    });
     
-    const response = await fetch(url);
-    const result: KamiUnbindResponse = await response.json();
-    
-    if (result.code === 200) {
-      // 清除本地验证信息
+    if (result.success) {
       localStorage.removeItem('kami_verify');
       localStorage.removeItem('kami_value');
-      
-      return {
-        success: true,
-        message: result.msg || '解绑成功'
-      };
-    } else {
-      return {
-        success: false,
-        message: result.msg || '解绑失败'
-      };
     }
+    
+    return {
+      success: result.success,
+      message: result.message
+    };
   } catch (error) {
     return {
       success: false,
-      message: `网络错误: ${error}`
+      message: `解绑错误: ${error}`
     };
   }
 }
@@ -179,26 +93,15 @@ export async function kamiUnbind(): Promise<{ success: boolean; message: string 
 // 获取公告
 export async function getNotice(): Promise<{ success: boolean; content: string }> {
   try {
-    const url = `${API_BASE}?api=notice&app=${APP_ID}`;
-    
-    const response = await fetch(url);
-    const result: NoticeResponse = await response.json();
-    
-    if (result.code === 200) {
-      return {
-        success: true,
-        content: result.msg.app_gg
-      };
-    } else {
-      return {
-        success: false,
-        content: '获取公告失败'
-      };
-    }
+    const content: string = await invoke('get_notice');
+    return {
+      success: true,
+      content: content || ''
+    };
   } catch (error) {
     return {
       success: false,
-      content: `网络错误: ${error}`
+      content: ''
     };
   }
 }
@@ -212,7 +115,6 @@ export function checkLocalVerify(): VerifyInfo | null {
     const verifyInfo: VerifyInfo = JSON.parse(verifyStr);
     const now = Math.floor(Date.now() / 1000);
     
-    // 检查是否过期
     if (verifyInfo.vipExpireTime < now) {
       localStorage.removeItem('kami_verify');
       localStorage.removeItem('kami_value');

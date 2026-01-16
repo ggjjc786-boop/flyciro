@@ -34,6 +34,9 @@ pub fn run() {
             commands::start_batch_registration,
             commands::export_accounts,
             commands::fetch_latest_email,
+            commands::kami_login,
+            commands::kami_unbind,
+            commands::get_notice,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
