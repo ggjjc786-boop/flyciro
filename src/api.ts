@@ -171,3 +171,13 @@ export const api = {
     }
   }
 };
+
+  // 批量获取 Kiro Token
+  async batchFetchKiroTokens(): Promise<string> {
+    return invoke('batch_fetch_kiro_tokens');
+  },
+
+  // 为单个账号获取 Kiro Token
+  async autoFetchKiroToken(accountId: number): Promise<string> {
+    return invoke('auto_fetch_kiro_token', { accountId });
+  },

@@ -161,6 +161,26 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
     }
   };
 
+  const handleBatchFetchTokens = async () => {
+    const confirmed = await showConfirm(
+      '确定要为所有已注册的账号批量获取 Kiro Token 吗？这将自动同步到 Kiro Account Manager。',
+      '批量获取 Token 确认'
+    );
+
+    if (confirmed) {
+      setIsLoading(true);
+      try {
+        const result = await api.batchFetchKiroTokens();
+        await showSuccess(result);
+        onRefresh();
+      } catch (error) {
+        await showError('批量获取 Token 失败: ' + error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
   return (
     <div className="control-panel">
       <div className="control-section">
@@ -241,6 +261,18 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
               <Cloud size={18} />
             )}
             同步到服务器
+          </button>
+          <button
+            className="control-action-button control-action-button-token"
+            onClick={handleBatchFetchTokens}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <Loader2 size={18} className="spin" />
+            ) : (
+              <Cloud size={18} />
+            )}
+            批量获取Token
           </button>
         </div>
       </div>

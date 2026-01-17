@@ -1607,3 +1607,505 @@ pub async fn get_notice() -> Result<String, String> {
         Ok("".to_string())
     }
 }
+
+
+// ============================================================
+// Kiro Token 获取和同步功能
+// ============================================================
+
+/// Kiro 凭证结构
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct KiroCredentials {
+    pub client_id: String,
+    pub client_secret: String,
+    pub refresh_token: String,
+    pub access_token: String,
+    pub id_token: Option<String>,
+}
+
+/// 在注册完成后自动获取 Kiro Token
+#[tauri::command]
+pub async fn auto_fetch_kiro_token(
+    db: State<'_, DbState>,
+    account_id: i64,
+) -> Result<String, String> {
+    println!("[auto_fetch_kiro_token] 开始为账号 {} 获取 Kiro Token", account_id);
+    
+    // 获取账号信息
+    let account = {
+        let conn = db.0.lock().map_err(|e| e.to_string())?;
+        database::get_account_by_id(&conn, account_id).map_err(|e| e.to_string())?
+    };
+    
+    // 检查账号是否已注册
+    if account.status != AccountStatus::Registered {
+        return Err("账号尚未完成注册，请先完成注册".to_string());
+    }
+    
+    let kiro_password = account.kiro_password.as_ref()
+        .ok_or("账号缺少 Kiro 密码")?;
+    
+    // 获取浏览器设置
+    let settings = {
+        let conn = db.0.lock().map_err(|e| e.to_string())?;
+        database::get_settings(&conn).map_err(|e| e.to_string())?
+    };
+    
+    // 执行获取凭证流程
+    let result = perform_kiro_token_fetch(
+        &account.email,
+        kiro_password,
+        &account.client_id,
+        &account.refresh_token,
+        settings.browser_mode,
+    ).await;
+    
+    match result {
+        Ok(credentials) => {
+            // 更新账号凭证信息
+            let conn = db.0.lock().map_err(|e| e.to_string())?;
+            database::update_account(
+                &conn,
+                AccountUpdate {
+                    id: account_id,
+                    email: None,
+                    email_password: None,
+                    client_id: None,
+                    refresh_token: None,
+                    kiro_password: None,
+                    status: None,
+                    error_reason: None,
+                    kiro_client_id: Some(credentials.client_id.clone()),
+                    kiro_client_secret: Some(credentials.client_secret.clone()),
+                    kiro_refresh_token: Some(credentials.refresh_token.clone()),
+                    kiro_access_token: Some(credentials.access_token.clone()),
+                    kiro_id_token: credentials.id_token.clone(),
+                },
+            )
+            .map_err(|e| e.to_string())?;
+            
+            println!("[auto_fetch_kiro_token] Token 获取成功，开始同步到 Kiro Account Manager");
+            
+            // 同步到 Kiro Account Manager
+            match sync_to_kiro_manager(&account.email, &credentials).await {
+                Ok(_) => {
+                    println!("[auto_fetch_kiro_token] 同步成功");
+                    Ok(format!("成功获取 Kiro Token 并同步到 Kiro Account Manager！Client ID: {}", credentials.client_id))
+                }
+                Err(e) => {
+                    println!("[auto_fetch_kiro_token] 同步失败: {}", e);
+                    Ok(format!("Token 获取成功但同步失败: {}。Client ID: {}", e, credentials.client_id))
+                }
+            }
+        }
+        Err(e) => {
+            Err(format!("获取 Kiro Token 失败: {}", e))
+        }
+    }
+}
+
+/// 执行 Kiro Token 获取流程
+async fn perform_kiro_token_fetch(
+    email: &str,
+    kiro_password: &str,
+    email_client_id: &str,
+    email_refresh_token: &str,
+    browser_mode: BrowserMode,
+) -> Result<KiroCredentials> {
+    let start_url = "https://view.awsapps.com/start";
+    let sso_client = AWSSSOClient::new("us-east-1");
+    
+    // Step 1: 注册设备客户端
+    println!("[Kiro Token] Step 1: 注册设备客户端...");
+    let client_reg = sso_client.register_device_client(start_url).await
+        .map_err(|e| anyhow!("注册设备客户端失败: {}", e))?;
+    
+    println!("[Kiro Token] 设备客户端注册成功");
+    println!("  Client ID: {}", client_reg.client_id);
+    
+    // Step 2: 发起设备授权
+    println!("[Kiro Token] Step 2: 发起设备授权...");
+    let device_auth = sso_client.start_device_authorization(
+        &client_reg.client_id,
+        &client_reg.client_secret,
+        start_url,
+    ).await
+        .map_err(|e| anyhow!("发起设备授权失败: {}", e))?;
+    
+    println!("[Kiro Token] 设备授权已发起");
+    println!("  Device Code: {}", device_auth.device_code);
+    println!("  User Code: {}", device_auth.user_code);
+    
+    // Step 3: 启动浏览器自动完成授权
+    println!("[Kiro Token] Step 3: 启动浏览器完成授权...");
+    let verification_url = device_auth.verification_uri_complete.as_ref()
+        .unwrap_or(&device_auth.verification_uri);
+    
+    let browser_result = perform_browser_authorization_for_kiro(
+        verification_url,
+        email,
+        kiro_password,
+        email_client_id,
+        email_refresh_token,
+        browser_mode,
+    ).await;
+    
+    if let Err(e) = browser_result {
+        return Err(anyhow!("浏览器授权失败: {}", e));
+    }
+    
+    println!("[Kiro Token] 浏览器授权完成");
+    
+    // Step 4: 轮询获取 Token
+    println!("[Kiro Token] Step 4: 轮询获取 Token...");
+    let poll_interval = device_auth.interval.unwrap_or(5) as u64;
+    let max_attempts = (device_auth.expires_in / poll_interval as i64) as usize;
+    
+    for attempt in 0..max_attempts {
+        std::thread::sleep(std::time::Duration::from_secs(poll_interval));
+        
+        match sso_client.poll_device_token(
+            &client_reg.client_id,
+            &client_reg.client_secret,
+            &device_auth.device_code,
+        ).await {
+            Ok(crate::aws_sso_client::DevicePollResult::Success(token)) => {
+                println!("[Kiro Token] Token 获取成功！");
+                return Ok(KiroCredentials {
+                    client_id: client_reg.client_id,
+                    client_secret: client_reg.client_secret,
+                    refresh_token: token.refresh_token,
+                    access_token: token.access_token,
+                    id_token: token.id_token,
+                });
+            }
+            Ok(crate::aws_sso_client::DevicePollResult::Pending) => {
+                println!("[Kiro Token] 授权待处理... (尝试 {}/{})", attempt + 1, max_attempts);
+                continue;
+            }
+            Ok(crate::aws_sso_client::DevicePollResult::SlowDown) => {
+                println!("[Kiro Token] 请求过快，减速中...");
+                std::thread::sleep(std::time::Duration::from_secs(5));
+                continue;
+            }
+            Ok(crate::aws_sso_client::DevicePollResult::Expired) => {
+                return Err(anyhow!("设备授权已过期"));
+            }
+            Ok(crate::aws_sso_client::DevicePollResult::Denied) => {
+                return Err(anyhow!("授权被拒绝"));
+            }
+            Err(e) => {
+                return Err(anyhow!("轮询 Token 失败: {}", e));
+            }
+        }
+    }
+    
+    Err(anyhow!("获取 Token 超时"))
+}
+
+/// 在浏览器中完成 Kiro 授权流程
+async fn perform_browser_authorization_for_kiro(
+    verification_url: &str,
+    email: &str,
+    kiro_password: &str,
+    email_client_id: &str,
+    email_refresh_token: &str,
+    browser_mode: BrowserMode,
+) -> Result<()> {
+    let (width, height) = BrowserAutomation::generate_random_window_size();
+    let os_version = BrowserAutomation::generate_random_os_version();
+    
+    let config = BrowserConfig {
+        mode: browser_mode,
+        os: "Windows".to_string(),
+        os_version,
+        device_type: "PC".to_string(),
+        language: "zh-CN".to_string(),
+        window_width: width,
+        window_height: height,
+    };
+    
+    let automation = BrowserAutomation::new(config);
+    let browser = automation.launch_browser()?;
+    let tab = browser.new_tab().context("Failed to create new tab")?;
+    
+    // Apply fingerprint protection
+    automation.apply_fingerprint_protection(&tab)?;
+    
+    // Navigate to verification URL
+    println!("[Browser Auth] 访问授权页面: {}", verification_url);
+    tab.navigate_to(verification_url)
+        .context("Failed to navigate to verification URL")?;
+    tab.wait_until_navigated()?;
+    
+    std::thread::sleep(std::time::Duration::from_secs(3));
+    
+    // Step 1: 点击 "Confirm and continue" 按钮
+    println!("[Browser Auth] 查找确认按钮...");
+    let confirm_button_selectors = vec![
+        "//button[contains(text(), 'Confirm and continue')]",
+        "//button[contains(text(), 'Confirm')]",
+        "//input[@type='submit' and contains(@value, 'Confirm')]",
+        "//*[@id='cli_verification_btn']",
+    ];
+    
+    for selector in &confirm_button_selectors {
+        if automation.wait_for_element(&tab, selector, 3).await.unwrap_or(false) {
+            println!("[Browser Auth] 找到确认按钮，点击...");
+            automation.click_element(&tab, selector)?;
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            break;
+        }
+    }
+    
+    // Step 2: 输入邮箱
+    println!("[Browser Auth] 查找邮箱输入框...");
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    
+    let email_input_selectors = vec![
+        "input[type='email']",
+        "input[name='email']",
+        "input[id*='email']",
+        "input[placeholder*='email']",
+        "input[autocomplete='email']",
+    ];
+    
+    let mut email_input_found = false;
+    for selector in &email_input_selectors {
+        if automation.wait_for_element(&tab, selector, 3).await.unwrap_or(false) {
+            println!("[Browser Auth] 找到邮箱输入框: {}", selector);
+            automation.input_text(&tab, selector, email)?;
+            email_input_found = true;
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            break;
+        }
+    }
+    
+    if !email_input_found {
+        println!("[Browser Auth] 未找到邮箱输入框，可能已登录");
+    }
+    
+    // Step 3: 点击继续按钮
+    let next_button_selectors = vec![
+        "button[type='submit']",
+        "input[type='submit']",
+        "button.awsui-button-variant-primary",
+    ];
+    
+    for selector in &next_button_selectors {
+        if automation.wait_for_element(&tab, selector, 3).await.unwrap_or(false) {
+            println!("[Browser Auth] 点击继续按钮: {}", selector);
+            automation.click_element(&tab, selector)?;
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            break;
+        }
+    }
+    
+    // Step 4: 输入密码
+    println!("[Browser Auth] 查找密码输入框...");
+    let password_input_selectors = vec![
+        "input[type='password']",
+        "input[name='password']",
+        "input[id*='password']",
+    ];
+    
+    for selector in &password_input_selectors {
+        if automation.wait_for_element(&tab, selector, 10).await.unwrap_or(false) {
+            println!("[Browser Auth] 找到密码输入框，输入密码...");
+            automation.input_text(&tab, selector, kiro_password)?;
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            
+            // 点击登录按钮
+            for btn_selector in &next_button_selectors {
+                if automation.wait_for_element(&tab, btn_selector, 3).await.unwrap_or(false) {
+                    println!("[Browser Auth] 点击登录按钮");
+                    automation.click_element(&tab, btn_selector)?;
+                    std::thread::sleep(std::time::Duration::from_secs(4));
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    
+    // Step 5: 检查是否需要邮箱验证码
+    println!("[Browser Auth] 检查是否需要验证码...");
+    let code_input_selectors = vec![
+        "input[placeholder*='code']",
+        "input[placeholder*='验证码']",
+        "input[id*='code']",
+        "input[autocomplete='one-time-code']",
+    ];
+    
+    for selector in &code_input_selectors {
+        if automation.wait_for_element(&tab, selector, 5).await.unwrap_or(false) {
+            println!("[Browser Auth] 需要验证码，从邮箱获取...");
+            
+            let graph_client = GraphApiClient::new();
+            match graph_client
+                .wait_for_verification_code(email_client_id, email_refresh_token, email, 60)
+                .await
+            {
+                Ok(verification_code) => {
+                    println!("[Browser Auth] 获取到验证码，输入...");
+                    automation.input_text(&tab, selector, &verification_code)?;
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                    
+                    // 点击验证按钮
+                    for btn_selector in &next_button_selectors {
+                        if automation.wait_for_element(&tab, btn_selector, 3).await.unwrap_or(false) {
+                            automation.click_element(&tab, btn_selector)?;
+                            std::thread::sleep(std::time::Duration::from_secs(3));
+                            break;
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("[Browser Auth] 获取验证码失败: {}", e);
+                }
+            }
+            break;
+        }
+    }
+    
+    // Step 6: 点击授权/允许按钮
+    println!("[Browser Auth] 查找授权按钮...");
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    
+    let allow_button_selectors = vec![
+        "//button[contains(text(), 'Allow')]",
+        "//button[contains(text(), 'Authorize')]",
+        "//button[contains(text(), '允许')]",
+        "//button[contains(text(), '授权')]",
+    ];
+    
+    for selector in &allow_button_selectors {
+        if automation.wait_for_element(&tab, selector, 5).await.unwrap_or(false) {
+            println!("[Browser Auth] 找到授权按钮，点击...");
+            automation.click_element(&tab, selector)?;
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            break;
+        }
+    }
+    
+    // Step 7: 等待授权完成
+    println!("[Browser Auth] 等待授权完成...");
+    std::thread::sleep(std::time::Duration::from_secs(5));
+    
+    // 清理浏览器数据
+    let _ = automation.clear_browser_data();
+    
+    Ok(())
+}
+
+/// 同步账号到 Kiro Account Manager
+async fn sync_to_kiro_manager(
+    email: &str,
+    credentials: &KiroCredentials,
+) -> Result<()> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| anyhow!("创建 HTTP 客户端失败: {}", e))?;
+    
+    let payload = serde_json::json!({
+        "email": email,
+        "label": "自动注册 (123应用)",
+        "access_token": credentials.access_token,
+        "refresh_token": credentials.refresh_token,
+        "id_token": credentials.id_token,
+        "client_id": credentials.client_id,
+        "client_secret": credentials.client_secret,
+        "region": "us-east-1",
+        "provider": "BuilderId"
+    });
+    
+    println!("[Sync] 发送同步请求到 Kiro Account Manager...");
+    println!("[Sync] Payload: {}", serde_json::to_string_pretty(&payload).unwrap_or_default());
+    
+    // 尝试多个可能的端口
+    let ports = vec![7878, 8080, 3000];
+    let mut last_error = String::new();
+    
+    for port in ports {
+        let url = format!("http://127.0.0.1:{}/import_account_from_external", port);
+        println!("[Sync] 尝试连接: {}", url);
+        
+        match client
+            .post(&url)
+            .json(&payload)
+            .send()
+            .await
+        {
+            Ok(response) => {
+                let status = response.status();
+                let text = response.text().await.unwrap_or_default();
+                
+                if status.is_success() {
+                    println!("[Sync] 同步成功！响应: {}", text);
+                    return Ok(());
+                } else {
+                    last_error = format!("服务器返回错误 ({}): {}", status, text);
+                    println!("[Sync] {}", last_error);
+                }
+            }
+            Err(e) => {
+                last_error = format!("连接失败: {}", e);
+                println!("[Sync] {}", last_error);
+                continue;
+            }
+        }
+    }
+    
+    Err(anyhow!("无法连接到 Kiro Account Manager: {}。请确保 Kiro Account Manager 正在运行。", last_error))
+}
+
+/// 批量获取 Kiro Token
+#[tauri::command]
+pub async fn batch_fetch_kiro_tokens(
+    db: State<'_, DbState>,
+) -> Result<String, String> {
+    // 获取所有已注册但没有 Kiro Token 的账号
+    let accounts = {
+        let conn = db.0.lock().map_err(|e| e.to_string())?;
+        database::get_accounts_by_status(&conn, "registered").map_err(|e| e.to_string())?
+    };
+    
+    let accounts_without_token: Vec<_> = accounts
+        .into_iter()
+        .filter(|a| a.kiro_client_id.is_none())
+        .collect();
+    
+    if accounts_without_token.is_empty() {
+        return Ok("没有需要获取 Token 的账号".to_string());
+    }
+    
+    let total_count = accounts_without_token.len();
+    let mut success_count = 0;
+    let mut error_count = 0;
+    
+    println!("[batch_fetch_kiro_tokens] 开始批量获取 Token，共 {} 个账号", total_count);
+    
+    for account in accounts_without_token {
+        println!("[batch_fetch_kiro_tokens] 处理账号: {}", account.email);
+        
+        match auto_fetch_kiro_token(db.clone(), account.id).await {
+            Ok(_) => {
+                success_count += 1;
+                println!("[batch_fetch_kiro_tokens] 账号 {} 成功", account.email);
+            }
+            Err(e) => {
+                error_count += 1;
+                println!("[batch_fetch_kiro_tokens] 账号 {} 失败: {}", account.email, e);
+            }
+        }
+        
+        // 每个账号之间等待一下
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    }
+    
+    Ok(format!(
+        "批量获取 Token 完成！总计: {}, 成功: {}, 失败: {}",
+        total_count, success_count, error_count
+    ))
+}

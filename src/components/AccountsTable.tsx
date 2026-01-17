@@ -97,6 +97,23 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
     }
   };
 
+  const handleFetchToken = async (id: number) => {
+    if (processingId) {
+      return;
+    }
+
+    setProcessingId(id);
+    try {
+      const result = await api.autoFetchKiroToken(id);
+      await showSuccess(result);
+      onRefresh();
+    } catch (error) {
+      await showError('获取 Token 失败: ' + error);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   const handleFetchEmails = async (account: Account) => {
     if (fetchingEmailId) {
       return;
@@ -232,6 +249,20 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
                           <Loader2 size={16} className="spin" />
                         ) : (
                           <Play size={16} />
+                        )}
+                      </button>
+                    )}
+                    {account.status === 'registered' && !account.kiro_client_id && (
+                      <button
+                        className="action-button action-button-token"
+                        onClick={() => handleFetchToken(account.id)}
+                        title="获取 Kiro Token"
+                        disabled={processingId === account.id || processingId !== null}
+                      >
+                        {processingId === account.id ? (
+                          <Loader2 size={16} className="spin" />
+                        ) : (
+                          <Mail size={16} />
                         )}
                       </button>
                     )}
