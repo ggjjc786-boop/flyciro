@@ -73,13 +73,6 @@ impl AccountStore {
         let accounts = Self::load_from_file(&file_path);
         Self { accounts, file_path }
     }
-}
-
-impl Default for AccountStore {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
     fn get_storage_path() -> PathBuf {
         let data_dir = dirs::data_dir().unwrap_or_else(|| {
@@ -150,5 +143,11 @@ impl Default for AccountStore {
 
     pub fn export_to_json(&self) -> String {
         serde_json::to_string_pretty(&self.accounts).unwrap_or_default()
+    }
+}
+
+impl Default for AccountStore {
+    fn default() -> Self {
+        Self::new()
     }
 }
