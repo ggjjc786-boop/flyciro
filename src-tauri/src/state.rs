@@ -17,3 +17,13 @@ pub struct AppState {
     pub auth: AuthState,
     pub pending_login: Mutex<Option<PendingLogin>>,
 }
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            store: Mutex::new(AccountStore::default()),
+            auth: AuthState::default(),
+            pending_login: Mutex::new(None),
+        }
+    }
+}

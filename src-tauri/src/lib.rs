@@ -29,19 +29,8 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // Initialize app state
-            let app_state = AppState::new();
+            let app_state = AppState::default();
             app.manage(app_state);
-
-            // Initialize database
-            let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(e) = account::init_database(&app_handle).await {
-                    eprintln!("Failed to initialize database: {}", e);
-                }
-            });
-
-            // Register deep link handler
-            deep_link_handler::register_deep_link_handler(app.handle().clone());
 
             Ok(())
         })
