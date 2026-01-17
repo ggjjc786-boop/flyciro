@@ -1,164 +1,229 @@
-import { useEffect, useState, useRef } from 'react';
-import { TitleBar } from './components/TitleBar';
-import { AccountsTable } from './components/AccountsTable';
-import { ImportPanel } from './components/ImportPanel';
-import { ControlPanel } from './components/ControlPanel';
-import { LoginPanel } from './components/LoginPanel';
-import { useStore } from './store';
-import { api } from './api';
-import { showError } from './utils/dialog';
-import { checkLocalVerify, kamiLogin, getSavedKami } from './kamiApi';
-import './App.css';
-import './index.css';
+import { useState, useEffect, useRef } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import Sidebar from './components/Sidebar'
+import Home from './components/Home'
+import AccountManager from './components/AccountManager/index'
+import Settings from './components/Settings'
+import KiroConfig from './components/KiroConfig/index'
+import About from './components/About'
+import Login from './components/Login'
+import WebOAuthLogin from './components/WebOAuthLogin'
+import AuthCallback from './components/AuthCallback'
+import UpdateChecker from './components/UpdateChecker'
+import { useTheme } from './contexts/ThemeContext'
+
+// 默认自动刷新间隔：50分钟
+const DEFAULT_REFRESH_INTERVAL = 50 * 60 * 1000
 
 function App() {
-  const { theme, setAccounts, accounts, setSettings, setTitleBarVisible } = useStore();
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isVerified, setIsVerified] = useState(false);
-  const [isCheckingVerify, setIsCheckingVerify] = useState(true);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const lastScrollY = useRef(0);
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [activeMenu, setActiveMenu] = useState('home')
+  const { colors } = useTheme()
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  useEffect(() => {
-    // Set initial theme
-    document.documentElement.setAttribute('data-theme', theme);
-
-    // 检查卡密验证状态
-    checkVerifyStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const checkVerifyStatus = async () => {
-    setIsCheckingVerify(true);
-    
-    // 先检查本地缓存
-    const localVerify = checkLocalVerify();
-    if (localVerify) {
-      // 本地有有效验证，尝试在线验证确认
-      const savedKami = getSavedKami();
-      if (savedKami) {
-        const result = await kamiLogin(savedKami);
-        if (result.success) {
-          setIsVerified(true);
-          setIsCheckingVerify(false);
-          loadData();
-          return;
-        }
-      }
-    }
-    
-    setIsVerified(false);
-    setIsCheckingVerify(false);
-  };
-
-  const handleLoginSuccess = () => {
-    setIsVerified(true);
-    loadData();
-  };
-
-  useEffect(() => {
-    // Handle scroll for auto-hide title bar
-    const handleScroll = () => {
-      if (!contentRef.current) return;
-
-      const currentScrollY = contentRef.current.scrollTop;
-
-      if (currentScrollY > lastScrollY.current && currentScrollY > 60) {
-        // Scrolling down
-        setTitleBarVisible(false);
-      } else if (currentScrollY < lastScrollY.current) {
-        // Scrolling up
-        setTitleBarVisible(true);
-      }
-
-      lastScrollY.current = currentScrollY;
-    };
-
-    const contentElement = contentRef.current;
-    if (contentElement) {
-      contentElement.addEventListener('scroll', handleScroll);
-      return () => contentElement.removeEventListener('scroll', handleScroll);
-    }
-  }, [setTitleBarVisible]);
-
-  const loadData = async () => {
-    setIsLoading(true);
+  // 启动时只刷新 token（不获取 usage，快速启动）
+  const refreshExpiredTokensOnly = async () => {
     try {
-      const [accountsData, settingsData] = await Promise.all([
-        api.getAccounts(statusFilter || undefined),
-        api.getSettings(),
-      ]);
-
-      setAccounts(accountsData);
-      setSettings(settingsData);
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      await showError('加载数据失败: ' + error);
-    } finally {
-      setIsLoading(false);
+      const settings = await invoke('get_app_settings').catch(() => ({}))
+      if (!(settings as any).autoRefresh) return
+      
+      const accounts = await invoke('get_accounts')
+      if (!accounts || (accounts as any[]).length === 0) return
+      
+      const now = new Date()
+      const refreshThreshold = 5 * 60 * 1000 // 提前 5 分钟
+      
+      const expiredAccounts = (accounts as any[]).filter(acc => {
+        // 跳过已封禁账号
+        if (acc.status === '已封禁' || acc.status === '封禁') return false
+        if (!acc.expiresAt) return false
+        const expiresAt = new Date(acc.expiresAt.replace(/\//g, '-'))
+        return (expiresAt.getTime() - now.getTime()) < refreshThreshold
+      })
+      
+      if (expiredAccounts.length === 0) {
+        console.log('[AutoRefresh] 没有需要刷新的 token')
+        return
+      }
+      
+      console.log(`[AutoRefresh] 刷新 ${expiredAccounts.length} 个过期 token...`)
+      
+      // 并发刷新
+      await Promise.allSettled(
+        expiredAccounts.map(async (account: any) => {
+          try {
+            await invoke('refresh_account_token', { id: account.id })
+            console.log(`[AutoRefresh] ${account.email} token 刷新成功`)
+          } catch (e) {
+            console.warn(`[AutoRefresh] ${account.email} token 刷新失败:`, e)
+          }
+        })
+      )
+      
+      console.log('[AutoRefresh] token 刷新完成')
+    } catch (e) {
+      console.error('[AutoRefresh] 刷新失败:', e)
     }
-  };
-
-  const handleFilterChange = async (filter: string | null) => {
-    setStatusFilter(filter);
-    setIsLoading(true);
-    try {
-      const accountsData = await api.getAccounts(filter || undefined);
-      setAccounts(accountsData);
-    } catch (error) {
-      console.error('Failed to load filtered data:', error);
-      await showError('加载数据失败: ' + error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 显示验证检查中的加载状态
-  if (isCheckingVerify) {
-    return (
-      <div className="app">
-        <div className="loading-container" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="spinner"></div>
-          <p>正在验证...</p>
-        </div>
-      </div>
-    );
   }
 
-  // 未验证显示登录面板
-  if (!isVerified) {
-    return <LoginPanel onLoginSuccess={handleLoginSuccess} />;
+  // 定时刷新：只刷新 token
+  const checkAndRefreshExpiringTokens = async () => {
+    try {
+      const settings = await invoke('get_app_settings').catch(() => ({}))
+      if (!(settings as any).autoRefresh) return
+      
+      const accounts = await invoke('get_accounts')
+      if (!accounts || (accounts as any[]).length === 0) return
+      
+      const now = new Date()
+      const refreshThreshold = 5 * 60 * 1000
+      
+      const expiredAccounts = (accounts as any[]).filter(acc => {
+        // 跳过已封禁账号
+        if (acc.status === '已封禁' || acc.status === '封禁') return false
+        if (!acc.expiresAt) return false
+        const expiresAt = new Date(acc.expiresAt.replace(/\//g, '-'))
+        return (expiresAt.getTime() - now.getTime()) < refreshThreshold
+      })
+      
+      if (expiredAccounts.length === 0) {
+        console.log('[AutoRefresh] 没有需要刷新的 token')
+        return
+      }
+      
+      console.log(`[AutoRefresh] 刷新 ${expiredAccounts.length} 个 token...`)
+      
+      await Promise.allSettled(
+        expiredAccounts.map(async (account: any) => {
+          try {
+            await invoke('refresh_account_token', { id: account.id })
+            console.log(`[AutoRefresh] ${account.email} token 刷新成功`)
+          } catch (e) {
+            console.warn(`[AutoRefresh] ${account.email} token 刷新失败:`, e)
+          }
+        })
+      )
+      
+      console.log('[AutoRefresh] token 刷新完成')
+    } catch (e) {
+      console.error('[AutoRefresh] 刷新失败:', e)
+    }
+  }
+
+  // 启动自动刷新定时器
+  const startAutoRefreshTimer = async () => {
+    if (refreshTimerRef.current) {
+      clearInterval(refreshTimerRef.current)
+    }
+    
+    // 启动时只刷新 token（快速启动）
+    refreshExpiredTokensOnly()
+    
+    // 从设置读取刷新间隔
+    const settings = await invoke('get_app_settings').catch(() => ({}))
+    const intervalMs = ((settings as any).autoRefreshInterval || 50) * 60 * 1000
+    
+    console.log(`[AutoRefresh] 定时器间隔: ${(settings as any).autoRefreshInterval || 50} 分钟`)
+    refreshTimerRef.current = setInterval(checkAndRefreshExpiringTokens, intervalMs)
+  }
+
+  useEffect(() => {
+    checkAuth()
+    
+    // 检查是否是回调页面
+    const url = new URL(window.location.href)
+    if (url.pathname === '/callback' && (url.searchParams.has('code') || url.searchParams.has('state'))) {
+      setActiveMenu('callback')
+      return
+    }
+    
+    // 监听登录成功事件
+    const unlisten = listen('login-success', (event) => {
+      console.log('Login success in App:', event.payload)
+      checkAuth()
+      setActiveMenu('token')
+    })
+    
+    // 监听设置变化，重启定时器
+    const unlistenSettings = listen('settings-changed', () => {
+      console.log('[AutoRefresh] 设置已变化，重启定时器')
+      startAutoRefreshTimer()
+    })
+    
+    // 启动自动刷新定时器
+    startAutoRefreshTimer()
+    
+    return () => { 
+      unlisten.then(fn => fn())
+      unlistenSettings.then(fn => fn())
+      if (refreshTimerRef.current) {
+        clearInterval(refreshTimerRef.current)
+      }
+    }
+  }, [])
+
+  const checkAuth = async () => {
+    try {
+      const currentUser = await invoke('get_current_user')
+      setUser(currentUser)
+    } catch (e) {
+      console.error('Auth check failed:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLogin = (loggedInUser: any) => {
+    if (loggedInUser) {
+      setUser(loggedInUser)
+    }
+    checkAuth()
+  }
+
+  const handleLogout = async () => {
+    await invoke('logout')
+    setUser(null)
+  }
+
+  const renderContent = () => {
+    switch (activeMenu) {
+      case 'home': return <Home onNavigate={setActiveMenu} />
+      case 'token': return <AccountManager />
+      case 'kiro-config': return <KiroConfig />
+      case 'login': return <Login onLogin={(user: any) => { handleLogin(user); setActiveMenu('token'); }} />
+      case 'web-oauth': return <WebOAuthLogin onLogin={(user: any) => { handleLogin(user); setActiveMenu('token'); }} />
+      case 'callback': return <AuthCallback />
+      case 'settings': return <Settings />
+      case 'about': return <About />
+      default: return <Home onNavigate={setActiveMenu} />
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="h-screen bg-[#0d0d0d] flex items-center justify-center">
+        <div className="text-white">加载中...</div>
+      </div>
+    )
   }
 
   return (
-    <div className="app">
-      <TitleBar />
-
-      <div className="app-content" ref={contentRef}>
-        <div className="app-main">
-          <div className="app-sidebar">
-            <ImportPanel onImportComplete={loadData} />
-            <ControlPanel
-              onFilterChange={handleFilterChange}
-              onRefresh={loadData}
-            />
-          </div>
-
-          <div className="app-table-section">
-            {isLoading ? (
-              <div className="loading-container">
-                <div className="spinner"></div>
-                <p>加载中...</p>
-              </div>
-            ) : (
-              <AccountsTable accounts={accounts} onRefresh={loadData} />
-            )}
-          </div>
-        </div>
-      </div>
+    <div className={`flex h-screen ${colors.main}`}>
+      <Sidebar 
+        activeMenu={activeMenu} 
+        onMenuChange={setActiveMenu}
+        user={user}
+        onLogout={handleLogout}
+      />
+      <main className="flex-1 overflow-hidden">
+        {renderContent()}
+      </main>
+      
+      <UpdateChecker />
     </div>
-  );
+  )
 }
 
-export default App;
+export default App

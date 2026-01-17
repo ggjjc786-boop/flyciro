@@ -5,6 +5,27 @@ use crate::browser_automation::BrowserAutomation;
 use crate::aws_sso_client::AWSSSOClient;
 use tauri::State;
 use anyhow::{Result, Context, anyhow};
+use headless_chrome::Tab;
+use std::sync::Arc;
+
+// Registration result structure
+struct RegistrationResult {
+    password: String,
+    kiro_client_id: Option<String>,
+    kiro_client_secret: Option<String>,
+    kiro_refresh_token: Option<String>,
+    kiro_access_token: Option<String>,
+    kiro_id_token: Option<String>,
+}
+
+// Kiro tokens structure
+struct KiroTokens {
+    client_id: Option<String>,
+    client_secret: Option<String>,
+    refresh_token: Option<String>,
+    access_token: Option<String>,
+    id_token: Option<String>,
+}
 
 #[tauri::command]
 pub async fn get_accounts(
@@ -217,8 +238,8 @@ pub async fn start_registration(
     ).await;
 
     match result {
-        Ok(kiro_password) => {
-            // Update account with success
+        Ok(reg_result) => {
+            // Update account with success and tokens
             let conn = db.0.lock().map_err(|e| e.to_string())?;
             database::update_account(
                 &conn,
@@ -228,19 +249,19 @@ pub async fn start_registration(
                     email_password: None,
                     client_id: None,
                     refresh_token: None,
-                    kiro_password: Some(kiro_password.clone()),
+                    kiro_password: Some(reg_result.password.clone()),
                     status: Some(AccountStatus::Registered),
                     error_reason: None,
-                    kiro_client_id: None,
-                    kiro_client_secret: None,
-                    kiro_refresh_token: None,
-                    kiro_access_token: None,
-                    kiro_id_token: None,
+                    kiro_client_id: reg_result.kiro_client_id,
+                    kiro_client_secret: reg_result.kiro_client_secret,
+                    kiro_refresh_token: reg_result.kiro_refresh_token,
+                    kiro_access_token: reg_result.kiro_access_token,
+                    kiro_id_token: reg_result.kiro_id_token,
                 },
             )
             .map_err(|e| e.to_string())?;
 
-            Ok(format!("Registration completed successfully. Password: {}", kiro_password))
+            Ok(format!("Registration completed successfully. Password: {}", reg_result.password))
         }
         Err(e) => {
             // Update account with error
@@ -277,7 +298,7 @@ async fn perform_registration(
     refresh_token: &str,
     name: &str,
     browser_mode: BrowserMode,
-) -> Result<String> {
+) -> Result<RegistrationResult> {
     let (width, height) = BrowserAutomation::generate_random_window_size();
     let os_version = BrowserAutomation::generate_random_os_version();
 
@@ -421,9 +442,22 @@ async fn perform_registration(
         let success_page_xpath = "/html/body/div[2]/div/div[1]/main/div/div[1]/div/div/div/div/div[2]";
 
         if automation.wait_for_element(&tab, success_page_xpath, 15).await? {
-            // Registration successful
+            // Registration successful, now get Kiro tokens
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            
+            // Extract tokens from browser storage
+            let tokens = extract_kiro_tokens(&tab)?;
+            
             automation.clear_browser_data()?;
-            return Ok(password);
+            
+            return Ok(RegistrationResult {
+                password,
+                kiro_client_id: tokens.client_id,
+                kiro_client_secret: tokens.client_secret,
+                kiro_refresh_token: tokens.refresh_token,
+                kiro_access_token: tokens.access_token,
+                kiro_id_token: tokens.id_token,
+            });
         } else {
             return Err(anyhow!("Success page not found - registration may have failed"));
         }
@@ -463,6 +497,119 @@ fn generate_secure_password() -> String {
     }
     
     password_chars.into_iter().collect()
+}
+
+/// Extract Kiro tokens from browser localStorage
+fn extract_kiro_tokens(tab: &Arc<Tab>) -> Result<KiroTokens> {
+    println!("\n[Token Extraction] Extracting Kiro tokens from browser...");
+    
+    // Script to extract tokens from localStorage
+    let script = r#"
+    (function() {
+        try {
+            // Get all localStorage keys
+            const keys = Object.keys(localStorage);
+            const result = {};
+            
+            // Look for Kiro-related keys
+            for (const key of keys) {
+                const value = localStorage.getItem(key);
+                
+                // Try to parse as JSON
+                try {
+                    const parsed = JSON.parse(value);
+                    
+                    // Check for token-related fields
+                    if (parsed && typeof parsed === 'object') {
+                        // Look for common token field names
+                        if (parsed.accessToken || parsed.access_token) {
+                            result.access_token = parsed.accessToken || parsed.access_token;
+                        }
+                        if (parsed.refreshToken || parsed.refresh_token) {
+                            result.refresh_token = parsed.refreshToken || parsed.refresh_token;
+                        }
+                        if (parsed.idToken || parsed.id_token) {
+                            result.id_token = parsed.idToken || parsed.id_token;
+                        }
+                        if (parsed.clientId || parsed.client_id) {
+                            result.client_id = parsed.clientId || parsed.client_id;
+                        }
+                        if (parsed.clientSecret || parsed.client_secret) {
+                            result.client_secret = parsed.clientSecret || parsed.client_secret;
+                        }
+                    }
+                } catch (e) {
+                    // Not JSON, skip
+                }
+            }
+            
+            // Also check for specific Kiro keys
+            const kiroAuthKey = keys.find(k => k.includes('kiro') || k.includes('auth') || k.includes('token'));
+            if (kiroAuthKey) {
+                try {
+                    const kiroData = JSON.parse(localStorage.getItem(kiroAuthKey));
+                    if (kiroData) {
+                        Object.assign(result, kiroData);
+                    }
+                } catch (e) {}
+            }
+            
+            return JSON.stringify(result);
+        } catch (error) {
+            return JSON.stringify({ error: error.message });
+        }
+    })()
+    "#;
+    
+    let result = tab.evaluate(script, true)
+        .context("Failed to execute token extraction script")?;
+    
+    if let Some(value) = result.value {
+        if let Some(json_str) = value.as_str() {
+            println!("[Token Extraction] Raw result: {}", json_str);
+            
+            // Parse the JSON result
+            let tokens: serde_json::Value = serde_json::from_str(json_str)
+                .context("Failed to parse token extraction result")?;
+            
+            let kiro_tokens = KiroTokens {
+                client_id: tokens.get("client_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                client_secret: tokens.get("client_secret")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                refresh_token: tokens.get("refresh_token")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                access_token: tokens.get("access_token")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                id_token: tokens.get("id_token")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+            };
+            
+            println!("[Token Extraction] Extracted tokens:");
+            println!("  - Client ID: {}", kiro_tokens.client_id.as_ref().map(|s| &s[..20.min(s.len())]).unwrap_or("None"));
+            println!("  - Client Secret: {}", if kiro_tokens.client_secret.is_some() { "Present" } else { "None" });
+            println!("  - Refresh Token: {}", if kiro_tokens.refresh_token.is_some() { "Present" } else { "None" });
+            println!("  - Access Token: {}", if kiro_tokens.access_token.is_some() { "Present" } else { "None" });
+            println!("  - ID Token: {}", if kiro_tokens.id_token.is_some() { "Present" } else { "None" });
+            
+            return Ok(kiro_tokens);
+        }
+    }
+    
+    // If no tokens found, return empty
+    println!("[Token Extraction] No tokens found in localStorage");
+    Ok(KiroTokens {
+        client_id: None,
+        client_secret: None,
+        refresh_token: None,
+        access_token: None,
+        id_token: None,
+    })
 }
 
 #[tauri::command]
@@ -1606,4 +1753,122 @@ pub async fn get_notice() -> Result<String, String> {
     } else {
         Ok("".to_string())
     }
+}
+
+
+/// Refresh Kiro token using Desktop API (similar to Kiro Account Manager)
+#[tauri::command]
+pub async fn refresh_kiro_token(
+    db: State<'_, DbState>,
+    account_id: i64,
+) -> Result<String, String> {
+    // Get account details
+    let account = {
+        let conn = db.0.lock().map_err(|e| e.to_string())?;
+        database::get_account_by_id(&conn, account_id).map_err(|e| e.to_string())?
+    };
+
+    // Check if we have a Kiro refresh token
+    let kiro_refresh_token = account.kiro_refresh_token
+        .ok_or_else(|| "No Kiro refresh token found for this account".to_string())?;
+
+    println!("\n[Refresh Kiro Token] Account: {}", account.email);
+
+    // Use Desktop API to refresh token
+    let refresh_result = refresh_token_desktop(&kiro_refresh_token).await
+        .map_err(|e| format!("Failed to refresh Kiro token: {}", e))?;
+
+    println!("[Refresh Kiro Token] Token refreshed successfully");
+
+    // Update account with new tokens
+    {
+        let conn = db.0.lock().map_err(|e| e.to_string())?;
+        database::update_account(
+            &conn,
+            AccountUpdate {
+                id: account_id,
+                email: None,
+                email_password: None,
+                client_id: None,
+                refresh_token: None,
+                kiro_password: None,
+                status: None,
+                error_reason: None,
+                kiro_client_id: None,
+                kiro_client_secret: None,
+                kiro_refresh_token: Some(refresh_result.refresh_token.clone()),
+                kiro_access_token: Some(refresh_result.access_token.clone()),
+                kiro_id_token: None,
+            },
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok("Token refreshed successfully".to_string())
+}
+
+/// Desktop API refresh token response
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopRefreshResponse {
+    access_token: String,
+    refresh_token: String,
+    expires_in: i64,
+    profile_arn: String,
+    csrf_token: Option<String>,
+}
+
+/// Refresh token using Desktop API
+async fn refresh_token_desktop(refresh_token: &str) -> Result<DesktopRefreshResponse, String> {
+    const DESKTOP_AUTH_API: &str = "https://prod.us-east-1.auth.desktop.kiro.dev";
+    
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("Failed to create client: {}", e))?;
+    
+    let body = serde_json::json!({
+        "refreshToken": refresh_token
+    });
+    
+    // Retry mechanism
+    let mut last_error = String::new();
+    for attempt in 0..3 {
+        if attempt > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        }
+        
+        match client
+            .post(format!("{}/refreshToken", DESKTOP_AUTH_API))
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
+            .json(&body)
+            .send()
+            .await
+        {
+            Ok(response) => {
+                let status = response.status();
+                let text = response.text().await.unwrap_or_default();
+                
+                println!("\n[Desktop] RefreshToken Response:");
+                println!("Status: {}", status);
+                
+                if !status.is_success() {
+                    if status.as_u16() == 401 {
+                        return Err("RefreshToken 已过期或无效".to_string());
+                    }
+                    return Err(format!("RefreshToken failed ({})", status));
+                }
+                
+                return serde_json::from_str(&text)
+                    .map_err(|e| format!("Parse failed: {}", e));
+            }
+            Err(e) => {
+                last_error = format!("网络错误: {}", e);
+                continue;
+            }
+        }
+    }
+    
+    Err(last_error)
 }
