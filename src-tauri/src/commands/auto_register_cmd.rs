@@ -7,7 +7,7 @@ use tauri::State;
 use anyhow::{Result, Context, anyhow};
 
 #[tauri::command]
-pub async fn get_accounts(
+pub async fn auto_register_get_accounts(
     db: State<'_, DbState>,
     status_filter: Option<String>,
 ) -> Result<Vec<Account>, String> {
@@ -23,7 +23,7 @@ pub async fn get_accounts(
 }
 
 #[tauri::command]
-pub async fn add_account(
+pub async fn auto_register_add_account(
     db: State<'_, DbState>,
     account: NewAccount,
 ) -> Result<i64, String> {
@@ -32,7 +32,7 @@ pub async fn add_account(
 }
 
 #[tauri::command]
-pub async fn update_account(
+pub async fn auto_register_update_account(
     db: State<'_, DbState>,
     update: AccountUpdate,
 ) -> Result<(), String> {
@@ -41,7 +41,7 @@ pub async fn update_account(
 }
 
 #[tauri::command]
-pub async fn delete_account(
+pub async fn auto_register_delete_account(
     db: State<'_, DbState>,
     id: i64,
 ) -> Result<(), String> {
@@ -50,7 +50,7 @@ pub async fn delete_account(
 }
 
 #[tauri::command]
-pub async fn delete_all_accounts(
+pub async fn auto_register_delete_all_accounts(
     db: State<'_, DbState>,
 ) -> Result<(), String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
@@ -58,7 +58,7 @@ pub async fn delete_all_accounts(
 }
 
 #[tauri::command]
-pub async fn import_accounts(
+pub async fn auto_register_import_accounts(
     db: State<'_, DbState>,
     content: String,
 ) -> Result<ImportResult, String> {
@@ -142,7 +142,7 @@ pub async fn import_accounts(
 }
 
 #[tauri::command]
-pub async fn get_settings(
+pub async fn auto_register_get_settings(
     db: State<'_, DbState>,
 ) -> Result<Settings, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
@@ -150,7 +150,7 @@ pub async fn get_settings(
 }
 
 #[tauri::command]
-pub async fn update_settings(
+pub async fn auto_register_update_settings(
     db: State<'_, DbState>,
     settings: Settings,
 ) -> Result<(), String> {
@@ -159,7 +159,7 @@ pub async fn update_settings(
 }
 
 #[tauri::command]
-pub async fn start_registration(
+pub async fn auto_register_start_registration(
     db: State<'_, DbState>,
     account_id: i64,
 ) -> Result<String, String> {
@@ -448,7 +448,7 @@ fn generate_secure_password() -> String {
 }
 
 #[tauri::command]
-pub async fn start_batch_registration(
+pub async fn auto_register_start_batch_registration(
     db: State<'_, DbState>,
 ) -> Result<String, String> {
     // Get all accounts with status 'not_registered'
@@ -575,7 +575,7 @@ pub async fn start_batch_registration(
 }
 
 #[tauri::command]
-pub async fn export_accounts(
+pub async fn auto_register_export_accounts(
     db: State<'_, DbState>,
     status_filter: Option<String>,
 ) -> Result<String, String> {
@@ -620,7 +620,7 @@ pub async fn export_accounts(
 
 /// 获取账号最新邮件
 #[tauri::command]
-pub async fn fetch_latest_email(
+pub async fn auto_register_fetch_latest_email(
     db: State<'_, DbState>,
     account_id: i64,
 ) -> Result<Vec<crate::auto_register::models::EmailMessage>, String> {
@@ -650,7 +650,7 @@ pub async fn fetch_latest_email(
 
 /// 获取 Kiro 凭证
 #[tauri::command]
-pub async fn get_kiro_credentials(
+pub async fn auto_register_get_kiro_credentials(
     db: State<'_, DbState>,
     account_id: i64,
 ) -> Result<String, String> {
@@ -714,7 +714,7 @@ pub async fn get_kiro_credentials(
 
 /// 批量获取 Kiro 凭证
 #[tauri::command]
-pub async fn batch_fetch_kiro_credentials(
+pub async fn auto_register_batch_fetch_kiro_credentials(
     db: State<'_, DbState>,
 ) -> Result<String, String> {
     // 获取所有已注册的账号
