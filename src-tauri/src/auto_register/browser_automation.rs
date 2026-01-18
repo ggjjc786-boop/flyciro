@@ -222,7 +222,7 @@ impl BrowserAutomation {
     pub async fn wait_for_element(
         &self,
         tab: &Arc<Tab>,
-        selector: &str,
+        xpath: &str,
         timeout_seconds: u64,
     ) -> Result<bool> {
         let start = std::time::Instant::now();
@@ -233,27 +233,14 @@ impl BrowserAutomation {
                 return Ok(false);
             }
 
-            let escaped_selector = selector.replace('`', "\\`").replace('$', "\\$");
             let script = format!(
                 r#"
                 (function() {{
-                    try {{
-                        var selector = `{}`;
-                        var el = document.querySelector(selector);
-                        if (el) return true;
-                        
-                        if (selector.startsWith('//') || selector.startsWith('./')) {{
-                            var result = document.evaluate(selector, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-                            if (result.singleNodeValue) return true;
-                        }}
-                        return false;
-                    }} catch(e) {{
-                        console.log('Selector error:', e);
-                        return false;
-                    }}
+                    const result = document.evaluate("{}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                    return result.singleNodeValue !== null;
                 }})()
                 "#,
-                escaped_selector
+                xpath
             );
 
             match tab.evaluate(&script, true) {
@@ -271,88 +258,59 @@ impl BrowserAutomation {
         }
     }
 
-    pub fn click_element(&self, tab: &Arc<Tab>, selector: &str) -> Result<()> {
-        let escaped_selector = selector.replace('`', "\\`").replace('$', "\\$");
+    pub fn click_element(&self, tab: &Arc<Tab>, xpath: &str) -> Result<()> {
         let script = format!(
             r#"
             (function() {{
-                try {{
-                    var selector = `{}`;
-                    var element = null;
-                    
-                    element = document.querySelector(selector);
-                    
-                    if (!element && (selector.startsWith('//') || selector.startsWith('./'))) {{
-                        var result = document.evaluate(selector, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-                        element = result.singleNodeValue;
-                    }}
-                    
-                    if (element) {{
-                        element.scrollIntoView({{behavior: 'smooth', block: 'center'}});
-                        setTimeout(function() {{
-                            element.click();
-                        }}, 100);
-                        return true;
-                    }}
-                    return false;
-                }} catch(e) {{
-                    console.log('Click error:', e);
-                    return false;
+                const result = document.evaluate("{}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                const element = result.singleNodeValue;
+                if (element) {{
+                    element.click();
+                    return true;
                 }}
+                return false;
             }})()
             "#,
-            escaped_selector
+            xpath
         );
 
         tab.evaluate(&script, true)
             .context("Failed to click element")?;
-        
-        std::thread::sleep(Duration::from_millis(200));
 
         Ok(())
     }
 
-    pub fn input_text(&self, tab: &Arc<Tab>, selector: &str, text: &str) -> Result<()> {
+    pub fn input_text(&self, tab: &Arc<Tab>, xpath: &str, text: &str) -> Result<()> {
+        // Properly escape JavaScript string to prevent encoding issues
         let escaped_text = Self::escape_js_string(text);
-        let escaped_selector = selector.replace('`', "\\`").replace('$', "\\$");
 
         let script = format!(
             r#"
             (function() {{
-                try {{
-                    var selector = `{}`;
-                    var element = null;
-                    
-                    element = document.querySelector(selector);
-                    
-                    if (!element && (selector.startsWith('//') || selector.startsWith('./'))) {{
-                        var result = document.evaluate(selector, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-                        element = result.singleNodeValue;
-                    }}
-                    
-                    if (element) {{
-                        element.scrollIntoView({{behavior: 'smooth', block: 'center'}});
-                        element.focus();
-                        element.value = '';
+                const result = document.evaluate("{}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                const element = result.singleNodeValue;
+                if (element) {{
+                    // Focus the element first
+                    element.focus();
 
-                        var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                        nativeInputValueSetter.call(element, '{}');
+                    // Clear existing value
+                    element.value = "";
 
-                        element.dispatchEvent(new Event('input', {{ bubbles: true, cancelable: true }}));
-                        element.dispatchEvent(new Event('change', {{ bubbles: true, cancelable: true }}));
-                        element.dispatchEvent(new KeyboardEvent('keyup', {{ bubbles: true }}));
+                    // Set the value using multiple methods to ensure React detects it
+                    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                    nativeInputValueSetter.call(element, "{}");
 
-                        return true;
-                    }}
-                    console.log('Element not found for selector:', selector);
-                    return false;
-                }} catch(e) {{
-                    console.log('Input error:', e);
-                    return false;
+                    // Dispatch events in the correct order to simulate real user input
+                    element.dispatchEvent(new Event('input', {{ bubbles: true, cancelable: true }}));
+                    element.dispatchEvent(new Event('change', {{ bubbles: true, cancelable: true }}));
+                    element.dispatchEvent(new Event('blur', {{ bubbles: true }}));
+
+                    return true;
                 }}
+                return false;
             }})()
             "#,
-            escaped_selector,
+            xpath,
             escaped_text
         );
 
@@ -362,6 +320,7 @@ impl BrowserAutomation {
         Ok(())
     }
 
+    /// Escape a string for safe use in JavaScript code
     fn escape_js_string(s: &str) -> String {
         s.chars()
             .map(|c| match c {
@@ -388,6 +347,8 @@ impl BrowserAutomation {
     }
 
     pub fn clear_browser_data(&self) -> Result<()> {
+        // This will be handled by launching a new browser instance with incognito mode
+        // The browser automatically clears data when closed
         Ok(())
     }
 }
