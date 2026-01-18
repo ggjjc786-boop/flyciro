@@ -25,10 +25,6 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
   const [fetchingEmailId, setFetchingEmailId] = useState<number | null>(null);
   const [emails, setEmails] = useState<EmailMessage[]>([]);
 
-  // 调试：组件加载时输出账号信息
-  console.log('AccountsTable rendered with accounts:', accounts);
-  console.log('Total accounts:', accounts.length);
-
   const itemsPerPage = 20;
 
   const filteredAccounts = useMemo(() => {
@@ -76,24 +72,15 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
   };
 
   const handleDelete = async (id: number) => {
-    console.log('=== DELETE BUTTON CLICKED ===');
-    console.log('[Delete] Starting delete for account ID:', id);
-    alert('删除按钮被点击了！ID: ' + id); // 临时测试
-    try {
-      const confirmed = await showConfirm('确定要删除这条记录吗?', '确认删除');
-      console.log('[Delete] User confirmation:', confirmed);
-      if (confirmed) {
-        console.log('[Delete] Calling API to delete account:', id);
+    const confirmed = await showConfirm('确定要删除这条记录吗?', '确认删除');
+    if (confirmed) {
+      try {
         await api.deleteAccount(id);
-        console.log('[Delete] Delete successful, refreshing list');
         await showSuccess('删除成功');
         onRefresh();
-      } else {
-        console.log('[Delete] User cancelled deletion');
+      } catch (error) {
+        await showError('删除失败: ' + error);
       }
-    } catch (error) {
-      console.error('[Delete] Error during deletion:', error);
-      await showError('删除失败: ' + error);
     }
   };
 
@@ -153,22 +140,6 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
 
   return (
     <div className={`flex flex-col h-full ${colors.card}`}>
-      {/* 测试按钮 */}
-      <div className="px-6 py-2 bg-yellow-100 border-b border-yellow-300">
-        <button
-          onClick={() => {
-            alert('测试按钮工作正常！');
-            console.log('Test button clicked!');
-          }}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-        >
-          🧪 点击测试按钮功能
-        </button>
-        <span className="ml-4 text-sm text-gray-700">
-          如果这个按钮能弹出 alert，说明按钮功能正常
-        </span>
-      </div>
-      
       <div className={`flex items-center justify-between px-6 py-4 border-b ${colors.cardBorder}`}>
         <input
           type="text"
@@ -241,8 +212,6 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
                     <button
                       className={`w-8 h-8 flex items-center justify-center border rounded-lg transition-all hover:scale-110 ${colors.textMuted} ${colors.cardBorder}`}
                       onClick={() => {
-                        console.log('VIEW DETAILS BUTTON CLICKED');
-                        alert('查看详情按钮被点击了！');
                         setSelectedAccount(account);
                         setIsDetailModalOpen(true);
                       }}
@@ -277,16 +246,9 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
                     )}
                     <button
                       className="w-8 h-8 flex items-center justify-center border border-red-500 text-red-500 rounded-lg transition-all hover:bg-red-500/10 disabled:opacity-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        console.log('DELETE BUTTON CLICKED - Event:', e);
-                        console.log('Account status:', account.status);
-                        console.log('Button disabled:', account.status === 'in_progress');
-                        handleDelete(account.id);
-                      }}
+                      onClick={() => handleDelete(account.id)}
                       title="删除"
-                      disabled={false} // 临时移除禁用，用于测试
-                      style={{ pointerEvents: 'auto', zIndex: 10 }} // 确保按钮可点击
+                      disabled={account.status === 'in_progress'}
                     >
                       <Trash2 size={16} />
                     </button>
