@@ -162,17 +162,17 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
   };
 
   return (
-    <div className={`card-glow ${colors.card} rounded-2xl border ${colors.cardBorder} p-6 shadow-sm`}>
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Filter size={18} className={colors.textMuted} />
-          <span className={`text-sm font-semibold ${colors.textMuted}`}>状态筛选</span>
+    <div className={`card-glow ${colors.card} rounded-2xl border ${colors.cardBorder} p-4 shadow-sm flex-shrink-0`}>
+      <div className="mb-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Filter size={16} className={colors.textMuted} />
+          <span className={`text-xs font-semibold ${colors.textMuted}`}>状态筛选</span>
         </div>
         <div className="flex flex-wrap gap-2">
           {filters.map(filter => (
             <button
               key={filter.value || 'all'}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 selectedFilter === filter.value
                   ? 'bg-blue-500 text-white shadow-sm'
                   : `${colors.card} ${colors.text} border ${colors.cardBorder} hover:scale-[1.02]`
@@ -186,65 +186,65 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
       </div>
 
       <div>
-        <div className="flex items-center gap-2 mb-4">
-          <Settings size={18} className={colors.textMuted} />
-          <span className={`text-sm font-semibold ${colors.textMuted}`}>操作</span>
+        <div className="flex items-center gap-2 mb-3">
+          <Settings size={16} className={colors.textMuted} />
+          <span className={`text-xs font-semibold ${colors.textMuted}`}>操作</span>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2">
           <button
-            className={`px-4 py-3 border rounded-xl text-sm font-medium transition-all hover:scale-[1.02] flex items-center justify-center gap-2 ${colors.text} ${colors.card} ${colors.cardBorder}`}
+            className={`px-3 py-2 border rounded-lg text-xs font-medium transition-all hover:scale-[1.02] flex items-center justify-center gap-1.5 ${colors.text} ${colors.card} ${colors.cardBorder}`}
             onClick={() => setIsSettingsOpen(true)}
           >
-            <Settings size={18} />
-            系统设置
+            <Settings size={14} />
+            <span>设置</span>
           </button>
           <button
-            className="px-4 py-3 border border-blue-500 text-blue-500 rounded-xl text-sm font-medium transition-all hover:bg-blue-500/10 flex items-center justify-center gap-2 disabled:opacity-50"
+            className="px-3 py-2 border border-blue-500 text-blue-500 rounded-lg text-xs font-medium transition-all hover:bg-blue-500/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
             onClick={handleBatchRegistration}
             disabled={isLoading}
           >
             {isLoading ? (
-              <Loader2 size={18} className="animate-spin" />
+              <Loader2 size={14} className="animate-spin" />
             ) : (
-              <PlayCircle size={18} />
+              <PlayCircle size={14} />
             )}
-            全部注册
+            <span>全部注册</span>
           </button>
           <button
-            className={`px-4 py-3 border rounded-xl text-sm font-medium transition-all hover:scale-[1.02] flex items-center justify-center gap-2 ${colors.text} ${colors.card} ${colors.cardBorder} disabled:opacity-50`}
+            className={`px-3 py-2 border rounded-lg text-xs font-medium transition-all hover:scale-[1.02] flex items-center justify-center gap-1.5 ${colors.text} ${colors.card} ${colors.cardBorder} disabled:opacity-50`}
             onClick={handleExport}
             disabled={isLoading}
           >
             {isLoading ? (
-              <Loader2 size={18} className="animate-spin" />
+              <Loader2 size={14} className="animate-spin" />
             ) : (
-              <Download size={18} />
+              <Download size={14} />
             )}
-            导出数据
+            <span>导出</span>
           </button>
           <button
-            className="px-4 py-3 border border-red-500 text-red-500 rounded-xl text-sm font-medium transition-all hover:bg-red-500/10 flex items-center justify-center gap-2 disabled:opacity-50"
+            className="px-3 py-2 border border-red-500 text-red-500 rounded-lg text-xs font-medium transition-all hover:bg-red-500/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
             onClick={handleDeleteAll}
             disabled={isLoading}
           >
             {isLoading ? (
-              <Loader2 size={18} className="animate-spin" />
+              <Loader2 size={14} className="animate-spin" />
             ) : (
-              <Trash2 size={18} />
+              <Trash2 size={14} />
             )}
-            删除全部
+            <span>删除</span>
           </button>
           <button
-            className="px-4 py-3 border border-cyan-500 text-cyan-500 rounded-xl text-sm font-medium transition-all hover:bg-cyan-500/10 flex items-center justify-center gap-2 col-span-2 disabled:opacity-50"
+            className="px-3 py-2 border border-cyan-500 text-cyan-500 rounded-lg text-xs font-medium transition-all hover:bg-cyan-500/10 flex items-center justify-center gap-1.5 col-span-2 disabled:opacity-50"
             onClick={handleOpenSyncModal}
             disabled={isSyncing}
           >
             {isSyncing ? (
-              <Loader2 size={18} className="animate-spin" />
+              <Loader2 size={14} className="animate-spin" />
             ) : (
-              <Cloud size={18} />
+              <Cloud size={14} />
             )}
-            同步到服务器
+            <span>同步到服务器</span>
           </button>
         </div>
       </div>

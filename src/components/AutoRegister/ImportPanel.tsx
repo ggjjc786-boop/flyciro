@@ -61,91 +61,90 @@ export function ImportPanel({ onImportComplete }: ImportPanelProps) {
   };
 
   return (
-    <div className={`card-glow ${colors.card} rounded-2xl border ${colors.cardBorder} overflow-hidden shadow-sm`}>
-      <div className={`px-6 py-5 border-b ${colors.cardBorder}`}>
-        <h3 className={`text-lg font-semibold ${colors.text} mb-2`}>数据导入</h3>
-        <p className={`text-sm ${colors.textMuted} font-mono`}>
-          格式: 邮箱地址----邮箱密码----客户端ID----refresh_token令牌
+    <div className={`card-glow ${colors.card} rounded-2xl border ${colors.cardBorder} overflow-hidden shadow-sm flex flex-col`}>
+      <div className={`px-6 py-4 border-b ${colors.cardBorder} flex-shrink-0`}>
+        <h3 className={`text-base font-semibold ${colors.text} mb-1`}>数据导入</h3>
+        <p className={`text-xs ${colors.textMuted} font-mono`}>
+          格式: 邮箱----密码----客户端ID----令牌
         </p>
       </div>
 
-      <div className="p-6">
-        <div className="mb-5">
+      <div className="p-4 flex-1 flex flex-col min-h-0">
+        <div className="mb-3 flex-shrink-0">
           <textarea
-            className={`w-full min-h-[200px] px-4 py-3 border rounded-xl ${colors.text} ${colors.input} ${colors.inputFocus} focus:ring-2 font-mono text-sm resize-y transition-all`}
-            placeholder="粘贴导入数据...&#10;&#10;示例:&#10;user@example.com----password123----client-id-here----refresh-token-here"
+            className={`w-full h-32 px-3 py-2 border rounded-lg ${colors.text} ${colors.input} ${colors.inputFocus} focus:ring-2 font-mono text-xs resize-none transition-all`}
+            placeholder="粘贴导入数据...&#10;&#10;示例:&#10;user@example.com----password123----client-id----token"
             value={content}
             onChange={e => setContent(e.target.value)}
-            rows={10}
           />
         </div>
 
-        <div className="flex gap-3 mb-5">
+        <div className="flex gap-2 mb-3 flex-shrink-0">
           <button
-            className="flex-1 px-5 py-3 bg-blue-500 text-white rounded-xl font-medium shadow-sm hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+            className="flex-1 px-3 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium shadow-sm hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
             onClick={handlePasteImport}
             disabled={isLoading || !content.trim()}
           >
             {isLoading ? (
               <>
-                <Loader2 size={18} className="animate-spin" />
-                导入中...
+                <Loader2 size={16} className="animate-spin" />
+                <span className="text-xs">导入中</span>
               </>
             ) : (
               <>
-                <FileText size={18} />
-                从文本导入
+                <FileText size={16} />
+                <span className="text-xs">文本导入</span>
               </>
             )}
           </button>
 
           <button
-            className={`flex-1 px-5 py-3 border rounded-xl font-medium shadow-sm hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 ${colors.text} ${colors.card} ${colors.cardBorder}`}
+            className={`flex-1 px-3 py-2 border rounded-lg text-sm font-medium shadow-sm hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 ${colors.text} ${colors.card} ${colors.cardBorder}`}
             onClick={handleFileImport}
             disabled={isLoading}
           >
             {isLoading ? (
               <>
-                <Loader2 size={18} className="animate-spin" />
-                导入中...
+                <Loader2 size={16} className="animate-spin" />
+                <span className="text-xs">导入中</span>
               </>
             ) : (
               <>
-                <Upload size={18} />
-                从文件导入
+                <Upload size={16} />
+                <span className="text-xs">文件导入</span>
               </>
             )}
           </button>
         </div>
 
         {result && (
-          <div className={`${colors.card} rounded-xl p-5 border ${colors.cardBorder}`}>
-            <h4 className={`text-base font-semibold ${colors.text} mb-4`}>导入结果</h4>
+          <div className={`${colors.card} rounded-lg p-3 border ${colors.cardBorder} flex-shrink-0 overflow-y-auto max-h-64`}>
+            <h4 className={`text-sm font-semibold ${colors.text} mb-2`}>导入结果</h4>
             
-            <div className="flex gap-5 mb-5">
-              <div className="flex items-center gap-2 px-4 py-3 bg-green-500/10 rounded-lg">
-                <span className={`text-sm font-medium ${colors.textMuted}`}>成功:</span>
-                <span className="text-xl font-semibold text-green-500">{result.success_count}</span>
+            <div className="flex gap-3 mb-3">
+              <div className="flex items-center gap-1 px-2 py-1 bg-green-500/10 rounded text-xs">
+                <span className={colors.textMuted}>成功:</span>
+                <span className="font-semibold text-green-500">{result.success_count}</span>
               </div>
-              <div className="flex items-center gap-2 px-4 py-3 bg-red-500/10 rounded-lg">
-                <span className={`text-sm font-medium ${colors.textMuted}`}>失败:</span>
-                <span className="text-xl font-semibold text-red-500">{result.error_count}</span>
+              <div className="flex items-center gap-1 px-2 py-1 bg-red-500/10 rounded text-xs">
+                <span className={colors.textMuted}>失败:</span>
+                <span className="font-semibold text-red-500">{result.error_count}</span>
               </div>
             </div>
 
             {result.errors && result.errors.length > 0 && (
-              <div className="mt-5">
-                <h5 className={`text-sm font-semibold ${colors.text} mb-3`}>错误详情:</h5>
-                <div className="max-h-[300px] overflow-y-auto space-y-2">
+              <div className="mt-3">
+                <h5 className={`text-xs font-semibold ${colors.text} mb-2`}>错误详情:</h5>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
                   {result.errors.map((error: any, index: number) => (
-                    <div key={index} className={`${colors.card} border ${colors.cardBorder} rounded-lg p-3`}>
-                      <div className="text-xs font-semibold text-red-500 mb-1">
+                    <div key={index} className={`${colors.card} border ${colors.cardBorder} rounded p-2 text-xs`}>
+                      <div className="font-semibold text-red-500 mb-0.5">
                         第 {error.line_number} 行
                       </div>
-                      <div className={`text-sm ${colors.text} mb-1`}>
+                      <div className={`${colors.text} mb-0.5 text-xs`}>
                         {error.reason}
                       </div>
-                      <div className={`text-xs font-mono ${colors.textMuted} ${colors.card} p-2 rounded break-all`}>
+                      <div className={`font-mono ${colors.textMuted} ${colors.card} p-1 rounded text-[10px] break-all`}>
                         {error.content}
                       </div>
                     </div>

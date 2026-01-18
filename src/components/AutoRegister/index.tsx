@@ -53,7 +53,7 @@ export function AutoRegister() {
   return (
     <div className={`h-full overflow-hidden ${colors.main}`}>
       <div className="flex gap-6 h-full p-6">
-        <div className="w-96 flex-shrink-0 flex flex-col gap-6">
+        <div className="w-96 flex-shrink-0 flex flex-col gap-6 overflow-y-auto">
           <ImportPanel onImportComplete={loadData} />
           <ControlPanel
             onFilterChange={handleFilterChange}
