@@ -1,13 +1,16 @@
 /// AWS SSO OIDC Client
 /// 实现 AWS SSO OIDC API 调用，用于 Kiro/Builder ID 认证
 
-use crate::models::{ClientRegistration, DeviceAuthorizationResponse, TokenResponse, DevicePollResult};
+use crate::models::{ClientRegistration, DeviceAuthorizationResponse, TokenResponse};
 use reqwest::Client;
 use serde::Deserialize;
 use std::time::Duration;
 
 // Re-export DevicePollResult for use in other modules
 pub use crate::models::DevicePollResult;
+
+// Import for internal use
+use DevicePollResult::*;
 
 /// AWS SSO OIDC 客户端
 pub struct AWSSSOClient {
@@ -144,16 +147,16 @@ impl AWSSSOClient {
         if status.is_success() {
             let token: TokenResponse = serde_json::from_str(&text)
                 .map_err(|e| format!("Failed to parse token: {}", e))?;
-            return Ok(DevicePollResult::Success(token));
+            return Ok(Success(token));
         }
 
         // 解析错误响应
         if let Ok(err) = serde_json::from_str::<DeviceErrorResponse>(&text) {
             match err.error.as_str() {
-                "authorization_pending" => Ok(DevicePollResult::Pending),
-                "slow_down" => Ok(DevicePollResult::SlowDown),
-                "expired_token" => Ok(DevicePollResult::Expired),
-                "access_denied" => Ok(DevicePollResult::Denied),
+                "authorization_pending" => Ok(Pending),
+                "slow_down" => Ok(SlowDown),
+                "expired_token" => Ok(Expired),
+                "access_denied" => Ok(Denied),
                 _ => Err(format!("Device auth error: {}", err.error)),
             }
         } else {
