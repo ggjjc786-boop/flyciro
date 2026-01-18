@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Filter, Trash2, Settings, Loader2, PlayCircle, Download, Cloud } from 'lucide-react';
+import { Filter, Trash2, Settings, Loader2, PlayCircle, Download, Cloud, Upload } from 'lucide-react';
 import { api } from '../../api/autoRegister';
 import { useStore } from '../../stores/autoRegisterStore';
 import { showConfirm, showSuccess, showError } from '../../utils/dialog';
@@ -43,6 +43,7 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [syncConfig, setSyncConfig] = useState<SyncConfig>(getSyncConfig());
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   const filters = [
     { value: null, label: '全部', count: 0 },
@@ -161,6 +162,26 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
     }
   };
 
+  const handleImportToMain = async () => {
+    const confirmed = await showConfirm(
+      '确定要将已注册的账号导入到主账号列表吗？',
+      '导入确认'
+    );
+
+    if (confirmed) {
+      setIsImporting(true);
+      try {
+        const result = await api.importToMain();
+        await showSuccess(result);
+        onRefresh();
+      } catch (error) {
+        await showError('导入失败: ' + error);
+      } finally {
+        setIsImporting(false);
+      }
+    }
+  };
+
   return (
     <div className={`card-glow ${colors.card} rounded-2xl border ${colors.cardBorder} p-4 shadow-sm flex-shrink-0`}>
       <div className="mb-4">
@@ -235,7 +256,7 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
             <span>删除</span>
           </button>
           <button
-            className="px-3 py-2 border border-cyan-500 text-cyan-500 rounded-lg text-xs font-medium transition-all hover:bg-cyan-500/10 flex items-center justify-center gap-1.5 col-span-2 disabled:opacity-50"
+            className="px-3 py-2 border border-cyan-500 text-cyan-500 rounded-lg text-xs font-medium transition-all hover:bg-cyan-500/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
             onClick={handleOpenSyncModal}
             disabled={isSyncing}
           >
@@ -245,6 +266,18 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
               <Cloud size={14} />
             )}
             <span>同步到服务器</span>
+          </button>
+          <button
+            className="px-3 py-2 border border-green-500 text-green-500 rounded-lg text-xs font-medium transition-all hover:bg-green-500/10 flex items-center justify-center gap-1.5 col-span-2 disabled:opacity-50"
+            onClick={handleImportToMain}
+            disabled={isImporting}
+          >
+            {isImporting ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Upload size={14} />
+            )}
+            <span>导入到主账号列表</span>
           </button>
         </div>
       </div>

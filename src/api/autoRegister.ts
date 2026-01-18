@@ -181,5 +181,17 @@ export const api = {
     } catch (error) {
       return { success: false, message: `同步错误: ${error}` };
     }
+  },
+
+  async getKiroCredentials(accountId: number): Promise<string> {
+    return invoke('auto_register_get_kiro_credentials', { accountId });
+  },
+
+  async batchFetchKiroCredentials(): Promise<string> {
+    return invoke('auto_register_batch_fetch_kiro_credentials');
+  },
+
+  async importToMain(): Promise<string> {
+    return invoke('auto_register_import_to_main');
   }
 };
