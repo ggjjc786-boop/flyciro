@@ -1269,7 +1269,139 @@ async fn perform_browser_authorization(
         println!("[Browser Auth] Confirm button not found, might be on login page already");
     }
 
-    // Step 2: 等待 AWS Builder ID 登录页面并输入邮箱
+    // Step 1.5: 检查是否在 AWS 通用登录页面，需要点击 "AWS Builder ID" 链接
+    println!("[Browser Auth] Checking if we need to click AWS Builder ID link...");
+    
+    // 尝试查找 AWS Builder ID 链接
+    let builder_id_link_script = r#"
+        (function() {
+            var links = document.querySelectorAll('a');
+            for (var i = 0; i < links.length; i++) {
+                var text = links[i].textContent || links[i].innerText || '';
+                if (text.indexOf('AWS Builder ID') !== -1 || text.indexOf('Builder ID') !== -1) {
+                    links[i].click();
+                    return 'Clicked AWS Builder ID link';
+                }
+            }
+            return 'AWS Builder ID link not found';
+        })()
+    "#;
+    
+    match tab.evaluate(builder_id_link_script, true) {
+        Ok(result) => {
+            if let Some(value) = result.value {
+                println!("[Browser Auth] AWS Builder ID link result: {}", value);
+                if value.as_str().unwrap_or("").contains("Clicked") {
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+                }
+            }
+        }
+        Err(e) => {
+            println!("[Browser Auth] Error checking for AWS Builder ID link: {}", e);
+        }
+    }
+
+    // Step 2: 等待 AWS 登录页面并输入邮箱（可能是通用 AWS 登录页面）
+    println!("[Browser Auth] Waiting for email input on AWS login page...");
+    
+    // 先尝试普通的 email input（通用 AWS 登录页面）
+    let generic_email_input_script = r#"
+        (function() {
+            var emailInput = document.querySelector('input[type="email"]') || 
+                           document.querySelector('input[name="email"]') ||
+                           document.querySelector('input[placeholder*="email"]') ||
+                           document.querySelector('input[placeholder*="Email"]');
+            if (emailInput) {
+                return 'found';
+            }
+            return 'not_found';
+        })()
+    "#;
+    
+    let is_generic_page = match tab.evaluate(generic_email_input_script, true) {
+        Ok(result) => {
+            if let Some(value) = result.value {
+                value.as_str().unwrap_or("") == "found"
+            } else {
+                false
+            }
+        }
+        Err(_) => false
+    };
+    
+    if is_generic_page {
+        println!("[Browser Auth] Found generic AWS login page, entering email...");
+        
+        // 在通用页面输入邮箱
+        let input_email_script = format!(
+            r#"
+            (function() {{
+                var emailInput = document.querySelector('input[type="email"]') || 
+                               document.querySelector('input[name="email"]') ||
+                               document.querySelector('input[placeholder*="email"]') ||
+                               document.querySelector('input[placeholder*="Email"]');
+                if (emailInput) {{
+                    emailInput.focus();
+                    emailInput.value = "{}";
+                    emailInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    emailInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    return 'success';
+                }}
+                return 'failed';
+            }})()
+            "#,
+            email
+        );
+        
+        match tab.evaluate(&input_email_script, true) {
+            Ok(result) => {
+                if let Some(value) = result.value {
+                    println!("[Browser Auth] Email input result: {}", value);
+                }
+            }
+            Err(e) => {
+                println!("[Browser Auth] Failed to input email: {}", e);
+            }
+        }
+        
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+        
+        // 点击继续按钮
+        let click_continue_script = r#"
+            (function() {
+                var buttons = document.querySelectorAll('button');
+                for (var i = 0; i < buttons.length; i++) {
+                    var text = buttons[i].textContent || buttons[i].innerText || '';
+                    if (text.indexOf('继续') !== -1 || text.indexOf('Continue') !== -1 || text.indexOf('Next') !== -1) {
+                        buttons[i].click();
+                        return 'clicked';
+                    }
+                }
+                // 如果没找到文本匹配的，尝试找 submit 按钮
+                var submitBtn = document.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.click();
+                    return 'clicked_submit';
+                }
+                return 'not_found';
+            })()
+        "#;
+        
+        match tab.evaluate(click_continue_script, true) {
+            Ok(result) => {
+                if let Some(value) = result.value {
+                    println!("[Browser Auth] Continue button click result: {}", value);
+                }
+            }
+            Err(e) => {
+                println!("[Browser Auth] Failed to click continue: {}", e);
+            }
+        }
+        
+        std::thread::sleep(std::time::Duration::from_secs(4));
+    }
+    
+    // Step 2.5: 等待 AWS Builder ID 登录页面并输入邮箱
     println!("[Browser Auth] Waiting for AWS Builder ID email input...");
     let email_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
     
