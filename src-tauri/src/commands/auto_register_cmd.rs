@@ -1275,357 +1275,93 @@ async fn perform_browser_authorization(
         }
     }
 
-    // Step 2: 检查是否在 AWS Builder ID 登录页面
-    println!("[Browser Auth] Checking for login page...");
-    std::thread::sleep(std::time::Duration::from_secs(2));
+    // Step 2: 等待登录页面并输入邮箱
+    println!("[Browser Auth] Waiting for email input...");
+    let email_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
     
-    // 先打印页面信息帮助调试
-    let page_info_script = r#"
-        (function() {
-            var inputs = document.querySelectorAll('input');
-            var buttons = document.querySelectorAll('button');
-            var info = {
-                url: window.location.href,
-                title: document.title,
-                inputs: [],
-                buttons: []
-            };
-            inputs.forEach(function(input) {
-                info.inputs.push({
-                    type: input.type,
-                    name: input.name,
-                    id: input.id,
-                    placeholder: input.placeholder,
-                    className: input.className
-                });
-            });
-            buttons.forEach(function(btn) {
-                info.buttons.push({
-                    text: btn.textContent.trim(),
-                    type: btn.type,
-                    className: btn.className
-                });
-            });
-            return JSON.stringify(info, null, 2);
-        })()
-    "#;
-    
-    match tab.evaluate(page_info_script, true) {
-        Ok(result) => {
-            if let Some(value) = result.value {
-                println!("[Browser Auth] Page info: {}", value);
-            }
-        }
-        Err(e) => {
-            println!("[Browser Auth] Failed to get page info: {}", e);
-        }
-    }
-    
-    // AWS Builder ID 登录页面的邮箱输入框 - 优先使用 CSS 选择器
-    let email_input_selectors = vec![
-        // CSS selectors (优先)
-        "input[type='email']",
-        "input[name='email']",
-        "input[id*='email']",
-        "input[placeholder*='example.com']",
-        "input[placeholder*='username']",
-        "input[placeholder*='email']",
-        "input[placeholder*='Email']",
-        "input[autocomplete='email']",
-        "input[autocomplete='username']",
-        // Fallback: 页面上的第一个文本输入框
-        "input[type='text']",
-        "input:not([type='hidden']):not([type='submit']):not([type='button'])",
-    ];
-    
-    let mut email_input_found = false;
-    for selector in &email_input_selectors {
-        println!("[Browser Auth] Trying email selector: {}", selector);
-        if automation.wait_for_element(&tab, selector, 3).await.unwrap_or(false) {
-            println!("[Browser Auth] Found email input at: {}", selector);
-            automation.input_text(&tab, selector, email)?;
-            email_input_found = true;
-            std::thread::sleep(std::time::Duration::from_millis(1500));
-            break;
-        }
-    }
-    
-    if !email_input_found {
-        println!("[Browser Auth] Email input not found, checking if already logged in...");
-        // 可能已经登录，检查是否有授权按钮
-        let allow_selectors = vec![
-            "//button[contains(text(), 'Allow')]",
-            "//button[contains(text(), 'Authorize')]",
-            "//input[@type='submit' and contains(@value, 'Allow')]",
-        ];
-        
-        for selector in &allow_selectors {
-            if automation.wait_for_element(&tab, selector, 5).await.unwrap_or(false) {
-                println!("[Browser Auth] Found allow button, clicking...");
-                automation.click_element(&tab, selector)?;
-                std::thread::sleep(std::time::Duration::from_secs(3));
-                return Ok(());
-            }
-        }
-    }
-    
-    // Step 3: 点击下一步/继续按钮（邮箱输入后）
-    let next_button_selectors = vec![
-        // CSS selectors for "继续" / "Continue" / "Next" buttons
-        "button[type='submit']",
-        "input[type='submit']",
-        "button.awsui-button-variant-primary",
-        "button[data-testid='continue-button']",
-        "button[data-testid='next-button']",
-    ];
-    
-    println!("[Browser Auth] Looking for continue button...");
-    for selector in &next_button_selectors {
-        println!("[Browser Auth] Trying button selector: {}", selector);
-        if automation.wait_for_element(&tab, selector, 3).await.unwrap_or(false) {
-            println!("[Browser Auth] Clicking next/continue button: {}", selector);
-            automation.click_element(&tab, selector)?;
+    if automation.wait_for_element(&tab, email_input_xpath, 10).await.unwrap_or(false) {
+        println!("[Browser Auth] Found email input, entering email...");
+        automation.input_text(&tab, email_input_xpath, email)?;
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+
+        // 点击下一步
+        let next_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
+        if automation.wait_for_element(&tab, next_button_xpath, 3).await.unwrap_or(false) {
+            println!("[Browser Auth] Clicking next button...");
+            automation.click_element(&tab, next_button_xpath)?;
             std::thread::sleep(std::time::Duration::from_secs(3));
-            break;
         }
+    } else {
+        println!("[Browser Auth] Email input not found, might already be logged in");
     }
-    
-    // 如果上面的选择器都没找到，尝试用 JavaScript 查找包含特定文字的按钮
-    let click_by_text_script = r#"
-        (function() {
-            var buttons = document.querySelectorAll('button, input[type="submit"]');
-            var targetTexts = ['继续', 'Continue', 'Next', '下一步'];
-            for (var i = 0; i < buttons.length; i++) {
-                var btn = buttons[i];
-                var text = btn.textContent || btn.value || '';
-                for (var j = 0; j < targetTexts.length; j++) {
-                    if (text.indexOf(targetTexts[j]) !== -1) {
-                        btn.scrollIntoView({behavior: 'smooth', block: 'center'});
-                        btn.click();
-                        return 'Clicked: ' + text;
-                    }
-                }
-            }
-            return 'No button found';
-        })()
-    "#;
-    
-    match tab.evaluate(click_by_text_script, true) {
-        Ok(result) => {
-            if let Some(value) = result.value {
-                println!("[Browser Auth] Click by text result: {}", value);
-            }
-        }
-        Err(e) => {
-            println!("[Browser Auth] Click by text failed: {}", e);
-        }
-    }
-    
-    std::thread::sleep(std::time::Duration::from_secs(3));
 
-    // Step 4: 输入密码
-    println!("[Browser Auth] Looking for password input...");
-    let password_input_selectors = vec![
-        // CSS selectors
-        "input[type='password']",
-        "input[name='password']",
-        "input[id*='password']",
-        "input[autocomplete='current-password']",
-    ];
+    // Step 3: 输入密码
+    println!("[Browser Auth] Waiting for password input...");
+    let password_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
     
-    for selector in &password_input_selectors {
-        println!("[Browser Auth] Trying password selector: {}", selector);
-        if automation.wait_for_element(&tab, selector, 10).await.unwrap_or(false) {
-            println!("[Browser Auth] Found password input, entering password...");
-            automation.input_text(&tab, selector, kiro_password)?;
-            std::thread::sleep(std::time::Duration::from_millis(1500));
-            
-            // 点击登录按钮
-            let signin_button_selectors = vec![
-                "button[type='submit']",
-                "input[type='submit']",
-                "button.awsui-button-variant-primary",
-            ];
-            
-            for btn_selector in &signin_button_selectors {
-                if automation.wait_for_element(&tab, btn_selector, 3).await.unwrap_or(false) {
-                    println!("[Browser Auth] Clicking sign in button: {}", btn_selector);
-                    automation.click_element(&tab, btn_selector)?;
-                    std::thread::sleep(std::time::Duration::from_secs(4));
-                    break;
-                }
-            }
-            
-            // 如果上面的选择器都没找到，尝试用 JavaScript 查找
-            let click_signin_script = r#"
-                (function() {
-                    var buttons = document.querySelectorAll('button, input[type="submit"]');
-                    var targetTexts = ['登录', '继续', 'Sign in', 'Login', 'Continue', 'Submit'];
-                    for (var i = 0; i < buttons.length; i++) {
-                        var btn = buttons[i];
-                        var text = btn.textContent || btn.value || '';
-                        for (var j = 0; j < targetTexts.length; j++) {
-                            if (text.indexOf(targetTexts[j]) !== -1) {
-                                btn.click();
-                                return 'Clicked: ' + text;
-                            }
-                        }
-                    }
-                    return 'No button found';
-                })()
-            "#;
-            
-            match tab.evaluate(click_signin_script, true) {
-                Ok(result) => {
-                    if let Some(value) = result.value {
-                        println!("[Browser Auth] Sign in click result: {}", value);
-                    }
-                }
-                Err(_) => {}
-            }
-            
+    if automation.wait_for_element(&tab, password_input_xpath, 10).await.unwrap_or(false) {
+        println!("[Browser Auth] Found password input, entering password...");
+        automation.input_text(&tab, password_input_xpath, kiro_password)?;
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+
+        // 点击登录
+        let signin_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
+        if automation.wait_for_element(&tab, signin_button_xpath, 3).await.unwrap_or(false) {
+            println!("[Browser Auth] Clicking sign in button...");
+            automation.click_element(&tab, signin_button_xpath)?;
             std::thread::sleep(std::time::Duration::from_secs(4));
-            break;
         }
     }
 
-    // Step 5: 检查是否需要邮箱验证码 (MFA)
-    println!("[Browser Auth] Checking for MFA/verification code...");
-    let code_input_selectors = vec![
-        // CSS selectors
-        "input[placeholder*='code']",
-        "input[placeholder*='Code']",
-        "input[placeholder*='验证码']",
-        "input[placeholder*='verification']",
-        "input[id*='code']",
-        "input[name*='code']",
-        "input[autocomplete='one-time-code']",
-    ];
+    // Step 4: 检查是否需要验证码
+    println!("[Browser Auth] Checking for verification code...");
+    let code_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
     
-    for selector in &code_input_selectors {
-        println!("[Browser Auth] Trying code selector: {}", selector);
-        if automation.wait_for_element(&tab, selector, 5).await.unwrap_or(false) {
-            println!("[Browser Auth] Found verification code input, fetching code from email...");
-            
-            // 使用 Graph API 获取验证码
-            let graph_client = GraphApiClient::new();
-            match graph_client
-                .wait_for_verification_code(email_client_id, email_refresh_token, email, 60)
-                .await
-            {
-                Ok(verification_code) => {
-                    println!("[Browser Auth] Got verification code, entering...");
-                    automation.input_text(&tab, selector, &verification_code)?;
-                    std::thread::sleep(std::time::Duration::from_millis(1500));
-                    
-                    // 点击验证/提交按钮
-                    let verify_script = r#"
-                        (function() {
-                            var buttons = document.querySelectorAll('button, input[type="submit"]');
-                            var targetTexts = ['验证', '继续', '提交', 'Verify', 'Submit', 'Continue'];
-                            for (var i = 0; i < buttons.length; i++) {
-                                var btn = buttons[i];
-                                var text = btn.textContent || btn.value || '';
-                                for (var j = 0; j < targetTexts.length; j++) {
-                                    if (text.indexOf(targetTexts[j]) !== -1) {
-                                        btn.click();
-                                        return 'Clicked: ' + text;
-                                    }
-                                }
-                            }
-                            // If no text match, click any submit button
-                            var submitBtn = document.querySelector('button[type="submit"], input[type="submit"]');
-                            if (submitBtn) {
-                                submitBtn.click();
-                                return 'Clicked submit button';
-                            }
-                            return 'No button found';
-                        })()
-                    "#;
-                    
-                    match tab.evaluate(verify_script, true) {
-                        Ok(result) => {
-                            if let Some(value) = result.value {
-                                println!("[Browser Auth] Verify click result: {}", value);
-                            }
-                        }
-                        Err(_) => {}
-                    }
-                    
-                    std::thread::sleep(std::time::Duration::from_secs(3));
-                }
-                Err(e) => {
-                    println!("[Browser Auth] Failed to get verification code: {}", e);
+    if automation.wait_for_element(&tab, code_input_xpath, 5).await.unwrap_or(false) {
+        println!("[Browser Auth] Verification code required, fetching from email...");
+        
+        let graph_client = GraphApiClient::new();
+        match graph_client
+            .wait_for_verification_code(email_client_id, email_refresh_token, email, 60)
+            .await
+        {
+            Ok(verification_code) => {
+                println!("[Browser Auth] Got verification code, entering...");
+                automation.input_text(&tab, code_input_xpath, &verification_code)?;
+                std::thread::sleep(std::time::Duration::from_millis(1500));
+
+                // 点击验证
+                let verify_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
+                if automation.wait_for_element(&tab, verify_button_xpath, 3).await.unwrap_or(false) {
+                    println!("[Browser Auth] Clicking verify button...");
+                    automation.click_element(&tab, verify_button_xpath)?;
+                    std::thread::sleep(std::time::Duration::from_secs(4));
                 }
             }
-            break;
+            Err(e) => {
+                println!("[Browser Auth] Failed to get verification code: {}", e);
+            }
         }
     }
 
-    // Step 6: 检查并点击授权/允许按钮
-    println!("[Browser Auth] Looking for authorization button...");
-    std::thread::sleep(std::time::Duration::from_secs(2));
+    // Step 5: 点击允许/授权按钮
+    println!("[Browser Auth] Looking for allow button...");
+    let allow_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/span/span/awsui-button/button";
     
-    // 使用 JavaScript 查找授权按钮
-    let allow_script = r#"
-        (function() {
-            var buttons = document.querySelectorAll('button, input[type="submit"]');
-            var targetTexts = ['允许', '授权', 'Allow', 'Authorize', 'Grant', 'Confirm'];
-            for (var i = 0; i < buttons.length; i++) {
-                var btn = buttons[i];
-                var text = btn.textContent || btn.value || '';
-                for (var j = 0; j < targetTexts.length; j++) {
-                    if (text.indexOf(targetTexts[j]) !== -1) {
-                        btn.click();
-                        return 'Clicked: ' + text;
-                    }
-                }
-            }
-            return 'No allow button found';
-        })()
-    "#;
-    
-    match tab.evaluate(allow_script, true) {
-        Ok(result) => {
-            if let Some(value) = result.value {
-                println!("[Browser Auth] Allow button result: {}", value);
-            }
-        }
-        Err(_) => {}
+    if automation.wait_for_element(&tab, allow_button_xpath, 10).await.unwrap_or(false) {
+        println!("[Browser Auth] Found allow button, clicking...");
+        automation.click_element(&tab, allow_button_xpath)?;
+        std::thread::sleep(std::time::Duration::from_secs(3));
     }
-    
-    std::thread::sleep(std::time::Duration::from_secs(3));
 
-    // Step 7: 等待授权完成（成功页面或 URL 变化）
-    println!("[Browser Auth] Waiting for authorization completion...");
+    // 等待授权完成
+    println!("[Browser Auth] Waiting for authorization to complete...");
     std::thread::sleep(std::time::Duration::from_secs(5));
     
-    // 检查成功指示
-    let check_success_script = r#"
-        (function() {
-            var body = document.body.textContent || '';
-            var successTexts = ['success', 'Success', 'authorized', 'Authorized', 'complete', 'Complete', 'You can close', '成功', '授权完成'];
-            for (var i = 0; i < successTexts.length; i++) {
-                if (body.indexOf(successTexts[i]) !== -1) {
-                    return 'Success: found "' + successTexts[i] + '"';
-                }
-            }
-            return 'No success indicator found';
-        })()
-    "#;
-    
-    match tab.evaluate(check_success_script, true) {
-        Ok(result) => {
-            if let Some(value) = result.value {
-                println!("[Browser Auth] Success check: {}", value);
-            }
-        }
-        Err(_) => {}
-    }
-
     // 清理浏览器数据
     let _ = automation.clear_browser_data();
 
+    println!("[Browser Auth] Browser authorization completed");
     Ok(())
 }
 
