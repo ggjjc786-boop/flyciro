@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react';
 import { Trash2, Edit, Eye, Play, Loader2, Mail } from 'lucide-react';
 import { Account } from '../../stores/autoRegisterStore';
 import { api, EmailMessage } from '../../api/autoRegister';
-import { showConfirm, showSuccess, showError } from '../../utils/dialog';
 import { useTheme } from '../../contexts/ThemeContext';
 
 interface AccountsTableProps {
@@ -72,14 +71,14 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
   };
 
   const handleDelete = async (id: number) => {
-    const confirmed = await showConfirm('确定要删除这条记录吗?', '确认删除');
-    if (confirmed) {
+    // 使用浏览器原生确认对话框
+    if (window.confirm('确定要删除这条记录吗？')) {
       try {
         await api.deleteAccount(id);
-        await showSuccess('删除成功');
+        alert('删除成功！');
         onRefresh();
       } catch (error) {
-        await showError('删除失败: ' + error);
+        alert('删除失败: ' + error);
       }
     }
   };
@@ -112,7 +111,7 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
       setSelectedAccount(account);
       setIsEmailModalOpen(true);
     } catch (error) {
-      await showError('获取邮件失败: ' + error);
+      alert('获取邮件失败: ' + error);
     } finally {
       setFetchingEmailId(null);
     }
@@ -421,10 +420,10 @@ function EditModal({
         id: account.id,
         ...formData,
       });
-      await showSuccess('更新成功');
+      alert('更新成功！');
       onSave();
     } catch (error) {
-      await showError('更新失败: ' + error);
+      alert('更新失败: ' + error);
     }
   };
 
