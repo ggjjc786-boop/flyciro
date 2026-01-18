@@ -25,6 +25,10 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
   const [fetchingEmailId, setFetchingEmailId] = useState<number | null>(null);
   const [emails, setEmails] = useState<EmailMessage[]>([]);
 
+  // 调试：组件加载时输出账号信息
+  console.log('AccountsTable rendered with accounts:', accounts);
+  console.log('Total accounts:', accounts.length);
+
   const itemsPerPage = 20;
 
   const filteredAccounts = useMemo(() => {
@@ -221,6 +225,8 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
                     <button
                       className={`w-8 h-8 flex items-center justify-center border rounded-lg transition-all hover:scale-110 ${colors.textMuted} ${colors.cardBorder}`}
                       onClick={() => {
+                        console.log('VIEW DETAILS BUTTON CLICKED');
+                        alert('查看详情按钮被点击了！');
                         setSelectedAccount(account);
                         setIsDetailModalOpen(true);
                       }}
@@ -258,10 +264,13 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
                       onClick={(e) => {
                         e.stopPropagation();
                         console.log('DELETE BUTTON CLICKED - Event:', e);
+                        console.log('Account status:', account.status);
+                        console.log('Button disabled:', account.status === 'in_progress');
                         handleDelete(account.id);
                       }}
                       title="删除"
-                      disabled={account.status === 'in_progress'}
+                      disabled={false} // 临时移除禁用，用于测试
+                      style={{ pointerEvents: 'auto', zIndex: 10 }} // 确保按钮可点击
                     >
                       <Trash2 size={16} />
                     </button>
