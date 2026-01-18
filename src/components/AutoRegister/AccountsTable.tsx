@@ -153,6 +153,22 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
 
   return (
     <div className={`flex flex-col h-full ${colors.card}`}>
+      {/* 测试按钮 */}
+      <div className="px-6 py-2 bg-yellow-100 border-b border-yellow-300">
+        <button
+          onClick={() => {
+            alert('测试按钮工作正常！');
+            console.log('Test button clicked!');
+          }}
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+        >
+          🧪 点击测试按钮功能
+        </button>
+        <span className="ml-4 text-sm text-gray-700">
+          如果这个按钮能弹出 alert，说明按钮功能正常
+        </span>
+      </div>
+      
       <div className={`flex items-center justify-between px-6 py-4 border-b ${colors.cardBorder}`}>
         <input
           type="text"
