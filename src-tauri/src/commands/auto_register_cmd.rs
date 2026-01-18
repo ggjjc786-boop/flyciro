@@ -1255,7 +1255,21 @@ async fn perform_browser_authorization(
         .context("Failed to navigate to verification URL")?;
     tab.wait_until_navigated()?;
 
-    std::thread::sleep(std::time::Duration::from_secs(3));
+    println!("[Browser Auth] Waiting for page to fully load...");
+    std::thread::sleep(std::time::Duration::from_secs(5));
+    
+    // 打印当前 URL 用于调试
+    let current_url_script = "window.location.href";
+    match tab.evaluate(current_url_script, true) {
+        Ok(result) => {
+            if let Some(value) = result.value {
+                println!("[Browser Auth] Current URL: {}", value);
+            }
+        }
+        Err(e) => {
+            println!("[Browser Auth] Failed to get current URL: {}", e);
+        }
+    }
 
     // Step 1: 等待并点击 "Confirm and continue" 按钮（设备授权确认页面）
     println!("[Browser Auth] Looking for confirm and continue button...");
@@ -1304,6 +1318,9 @@ async fn perform_browser_authorization(
     // Step 2: 在 AWS Builder ID 登录页面输入邮箱
     println!("[Browser Auth] Waiting for email input on AWS Builder ID login page...");
     
+    // 先等待一下确保页面元素加载完成
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    
     // 转义邮箱地址以防止 JavaScript 语法错误
     let escaped_email = email.replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'");
     
@@ -1311,10 +1328,12 @@ async fn perform_browser_authorization(
     let input_email_script = format!(
         r#"
         (function() {{
+            console.log('[Browser Auth JS] Looking for email input...');
             var emailInput = document.querySelector('input[placeholder*="example.com"]') ||
                            document.querySelector('input[placeholder*="username"]') ||
                            document.querySelector('input[type="email"]') || 
                            document.querySelector('input[name="email"]');
+            console.log('[Browser Auth JS] Email input found:', emailInput);
             if (emailInput) {{
                 emailInput.focus();
                 
@@ -1325,6 +1344,7 @@ async fn perform_browser_authorization(
                 emailInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
                 emailInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
                 emailInput.dispatchEvent(new Event('blur', {{ bubbles: true }}));
+                console.log('[Browser Auth JS] Email input value:', emailInput.value);
                 return 'success';
             }}
             return 'failed';
@@ -1338,13 +1358,14 @@ async fn perform_browser_authorization(
             if let Some(value) = result.value {
                 println!("[Browser Auth] Email input result: {}", value);
                 if value.as_str().unwrap_or("") != "success" {
-                    return Err(anyhow!("Failed to input email"));
+                    println!("[Browser Auth] WARNING: Failed to input email, but continuing...");
+                    // 不要立即返回错误，继续尝试
                 }
             }
         }
         Err(e) => {
             println!("[Browser Auth] Failed to input email: {}", e);
-            return Err(anyhow!("Failed to input email: {}", e));
+            println!("[Browser Auth] WARNING: Continuing despite error...");
         }
     }
     
