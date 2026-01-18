@@ -72,14 +72,22 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
   };
 
   const handleDelete = async (id: number) => {
-    const confirmed = await showConfirm('确定要删除这条记录吗?', '确认删除');
-    if (confirmed) {
-      try {
+    console.log('[Delete] Starting delete for account ID:', id);
+    try {
+      const confirmed = await showConfirm('确定要删除这条记录吗?', '确认删除');
+      console.log('[Delete] User confirmation:', confirmed);
+      if (confirmed) {
+        console.log('[Delete] Calling API to delete account:', id);
         await api.deleteAccount(id);
+        console.log('[Delete] Delete successful, refreshing list');
+        await showSuccess('删除成功');
         onRefresh();
-      } catch (error) {
-        await showError('删除失败: ' + error);
+      } else {
+        console.log('[Delete] User cancelled deletion');
       }
+    } catch (error) {
+      console.error('[Delete] Error during deletion:', error);
+      await showError('删除失败: ' + error);
     }
   };
 

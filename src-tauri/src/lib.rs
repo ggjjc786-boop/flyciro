@@ -126,6 +126,8 @@ pub fn run() {
             commands::auto_register_cmd::auto_register_start_batch_registration,
             commands::auto_register_cmd::auto_register_export_accounts,
             commands::auto_register_cmd::auto_register_fetch_latest_email,
+            commands::auto_register_cmd::auto_register_get_kiro_credentials,
+            commands::auto_register_cmd::auto_register_batch_fetch_kiro_credentials,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

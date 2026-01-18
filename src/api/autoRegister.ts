@@ -70,7 +70,15 @@ export const api = {
   },
 
   async deleteAccount(id: number): Promise<void> {
-    return invoke('auto_register_delete_account', { id });
+    console.log('[API] Calling auto_register_delete_account with id:', id);
+    try {
+      const result = await invoke('auto_register_delete_account', { id });
+      console.log('[API] Delete result:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] Delete error:', error);
+      throw error;
+    }
   },
 
   async deleteAllAccounts(): Promise<void> {
