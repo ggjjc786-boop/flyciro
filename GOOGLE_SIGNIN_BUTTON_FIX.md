@@ -6,35 +6,52 @@
 
 ## 问题原因
 
-`perform_browser_authorization` 函数使用的是通用的 CSS 选择器来定位页面元素，这些选择器无法准确定位 AWS Builder ID 登录页面的特定元素，导致自动化流程失败。
+1. `perform_browser_authorization` 函数最初使用的是通用的 CSS 选择器，无法准确定位 AWS Builder ID 登录页面的特定元素
+2. 使用单一的 XPath 选择器，如果页面结构稍有变化就会失败
+3. 错误处理不够完善，当元素未找到时会静默失败，没有尝试备用方案
 
 ## 解决方案
 
-### 1. 使用精确的 XPath 选择器
+### 1. 使用多个备用选择器策略
 
-将 `perform_browser_authorization` 函数中的所有 CSS 选择器替换为精确的 XPath 选择器，这些选择器与 AWS Builder ID 登录页面的实际 HTML 结构完全匹配：
+为每个输入框提供多个可能的选择器，按优先级尝试：
 
-- **邮箱输入框**: `/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input`
-- **密码输入框**: `/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input`
-- **下一步按钮**: `/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button`
-- **登录按钮**: `/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button`
-- **验证码输入框**: `/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input`
-- **验证按钮**: `/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button`
-- **允许按钮**: `/html/body/div/div/main/div/div/form/div[2]/span/span/awsui-button/button`
+**邮箱输入框选择器**:
+- `/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input` (精确 XPath)
+- `//input[@type='email']` (通用 email 类型)
+- `//input[@name='email']` (通用 name 属性)
+- `//awsui-input//input` (AWS UI 组件)
 
-### 2. 删除重复的旧代码
+**密码输入框选择器**:
+- `/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input` (精确 XPath)
+- `//input[@type='password']` (通用 password 类型)
+- `//input[@name='password']` (通用 name 属性)
+- `//awsui-input//input[@type='password']` (AWS UI 组件)
 
-文件中存在重复的 `perform_browser_authorization` 函数实现，删除了使用通用 CSS 选择器的旧版本代码（约 264 行），保留了使用精确 XPath 的新版本。
+### 2. 添加详细的日志输出
 
-### 3. 完整的登录流程
+每个步骤都添加了详细的日志，便于调试：
+- 尝试每个选择器时输出日志
+- 成功找到元素时输出确认
+- 输入成功/失败时输出结果
+- 未找到元素时输出警告
+
+### 3. 改进错误处理
+
+- 使用 `match` 语句处理 `Result`，而不是简单的 `unwrap_or(false)`
+- 当一个选择器失败时，自动尝试下一个
+- 添加标志变量（`email_entered`, `password_entered`）跟踪操作是否成功
+- 如果所有选择器都失败，输出警告但不中断流程
+
+### 4. 完整的登录流程
 
 修复后的函数实现了完整的 AWS Builder ID 登录流程：
 
 1. 导航到验证 URL
 2. 点击"Confirm and continue"按钮（如果存在）
-3. 输入邮箱地址
+3. **尝试多个选择器输入邮箱地址**
 4. 点击下一步
-5. 输入密码
+5. **尝试多个选择器输入密码**
 6. 点击登录
 7. 如果需要验证码，从邮箱获取并输入
 8. 点击允许/授权按钮
@@ -43,22 +60,32 @@
 ## 修改的文件
 
 - `123/src-tauri/src/commands/auto_register_cmd.rs`
-  - 修改了 `perform_browser_authorization` 函数
-  - 删除了重复的旧代码（约 264 行）
-  - 使用精确的 XPath 选择器替代通用 CSS 选择器
+  - 改进了 `perform_browser_authorization` 函数
+  - 为邮箱和密码输入添加了多个备用选择器
+  - 添加了详细的日志输出
+  - 改进了错误处理逻辑
 
 ## 测试建议
 
 1. 在账号列表中找到状态为"已注册"的账号
 2. 点击该账号行的绿色"导入"按钮（Upload 图标）
-3. 观察浏览器是否自动：
-   - 打开 AWS Builder ID 登录页面
-   - 自动填写邮箱
-   - 自动填写密码
-   - 自动点击登录
-   - 如需验证码，自动获取并填写
-   - 自动点击允许按钮
-4. 确认账号成功导入到主账号池
+3. 查看控制台日志输出，确认：
+   - 浏览器成功打开
+   - 尝试了哪些选择器
+   - 哪个选择器成功找到了元素
+   - 邮箱和密码是否成功输入
+4. 观察浏览器是否自动完成登录流程
+5. 确认账号成功导入到主账号池
+
+## 调试方法
+
+如果仍然无法自动输入，请检查控制台日志：
+
+1. 查找 `[Browser Auth]` 开头的日志
+2. 确认哪些选择器被尝试了
+3. 查看是否有 "Successfully entered email/password" 的日志
+4. 如果看到 "WARNING: Could not enter email/password"，说明所有选择器都失败了
+5. 可以手动在浏览器开发者工具中测试这些 XPath 选择器
 
 ## 相关功能
 
@@ -66,9 +93,28 @@
 - **批量导入**: `auto_register_import_to_main` 命令
 - **注册后自动获取凭证**: 在 `auto_register_start_registration` 中自动调用 `perform_kiro_login`
 
-## 提交信息
+## 提交历史
 
-- Commit: 修复浏览器自动化登录：使用精确的 XPath 选择器替代通用 CSS 选择器，删除重复的旧代码
-- 删除行数: 327 行
-- 新增行数: 63 行
-- 净减少: 264 行
+1. **第一次修复**: 使用精确的 XPath 选择器替代通用 CSS 选择器，删除重复代码
+2. **第二次改进**: 添加多个备用选择器和详细日志，提高元素定位成功率
+
+## 技术细节
+
+### 为什么需要多个选择器？
+
+AWS Builder ID 登录页面可能会：
+- 动态加载，导致 DOM 结构变化
+- 使用不同的组件版本
+- 在不同情况下使用不同的 HTML 结构
+
+通过提供多个备用选择器，我们可以：
+- 提高兼容性
+- 适应页面结构的变化
+- 在一个选择器失败时自动尝试其他方案
+
+### 选择器优先级
+
+1. **精确 XPath**: 最快，但最脆弱
+2. **类型属性**: 通用性好，适用于标准 HTML
+3. **名称属性**: 语义化，但可能不存在
+4. **组件选择器**: 针对特定 UI 框架（如 AWS UI）
