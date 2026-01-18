@@ -1277,40 +1277,102 @@ async fn perform_browser_authorization(
 
     // Step 2: 等待登录页面并输入邮箱
     println!("[Browser Auth] Waiting for email input...");
-    let email_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
     
-    if automation.wait_for_element(&tab, email_input_xpath, 10).await.unwrap_or(false) {
-        println!("[Browser Auth] Found email input, entering email...");
-        automation.input_text(&tab, email_input_xpath, email)?;
-        std::thread::sleep(std::time::Duration::from_millis(1500));
-
-        // 点击下一步
-        let next_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
-        if automation.wait_for_element(&tab, next_button_xpath, 3).await.unwrap_or(false) {
-            println!("[Browser Auth] Clicking next button...");
-            automation.click_element(&tab, next_button_xpath)?;
-            std::thread::sleep(std::time::Duration::from_secs(3));
+    // 尝试多个可能的邮箱输入框选择器
+    let email_input_selectors = vec![
+        "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input",
+        "//input[@type='email']",
+        "//input[@name='email']",
+        "//awsui-input//input",
+    ];
+    
+    let mut email_entered = false;
+    for selector in &email_input_selectors {
+        println!("[Browser Auth] Trying email selector: {}", selector);
+        match automation.wait_for_element(&tab, selector, 5).await {
+            Ok(true) => {
+                println!("[Browser Auth] Found email input with selector: {}", selector);
+                match automation.input_text(&tab, selector, email) {
+                    Ok(_) => {
+                        println!("[Browser Auth] Successfully entered email");
+                        email_entered = true;
+                        std::thread::sleep(std::time::Duration::from_millis(1500));
+                        
+                        // 点击下一步
+                        let next_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
+                        if automation.wait_for_element(&tab, next_button_xpath, 3).await.unwrap_or(false) {
+                            println!("[Browser Auth] Clicking next button...");
+                            automation.click_element(&tab, next_button_xpath)?;
+                            std::thread::sleep(std::time::Duration::from_secs(3));
+                        }
+                        break;
+                    }
+                    Err(e) => {
+                        println!("[Browser Auth] Failed to enter email: {}", e);
+                    }
+                }
+            }
+            Ok(false) => {
+                println!("[Browser Auth] Email input not found with selector: {}", selector);
+            }
+            Err(e) => {
+                println!("[Browser Auth] Error waiting for email input: {}", e);
+            }
         }
-    } else {
-        println!("[Browser Auth] Email input not found, might already be logged in");
+    }
+    
+    if !email_entered {
+        println!("[Browser Auth] WARNING: Could not enter email, might already be logged in or page structure changed");
     }
 
     // Step 3: 输入密码
     println!("[Browser Auth] Waiting for password input...");
-    let password_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
     
-    if automation.wait_for_element(&tab, password_input_xpath, 10).await.unwrap_or(false) {
-        println!("[Browser Auth] Found password input, entering password...");
-        automation.input_text(&tab, password_input_xpath, kiro_password)?;
-        std::thread::sleep(std::time::Duration::from_millis(1500));
-
-        // 点击登录
-        let signin_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
-        if automation.wait_for_element(&tab, signin_button_xpath, 3).await.unwrap_or(false) {
-            println!("[Browser Auth] Clicking sign in button...");
-            automation.click_element(&tab, signin_button_xpath)?;
-            std::thread::sleep(std::time::Duration::from_secs(4));
+    // 尝试多个可能的密码输入框选择器
+    let password_input_selectors = vec![
+        "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input",
+        "//input[@type='password']",
+        "//input[@name='password']",
+        "//awsui-input//input[@type='password']",
+    ];
+    
+    let mut password_entered = false;
+    for selector in &password_input_selectors {
+        println!("[Browser Auth] Trying password selector: {}", selector);
+        match automation.wait_for_element(&tab, selector, 5).await {
+            Ok(true) => {
+                println!("[Browser Auth] Found password input with selector: {}", selector);
+                match automation.input_text(&tab, selector, kiro_password) {
+                    Ok(_) => {
+                        println!("[Browser Auth] Successfully entered password");
+                        password_entered = true;
+                        std::thread::sleep(std::time::Duration::from_millis(1500));
+                        
+                        // 点击登录
+                        let signin_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
+                        if automation.wait_for_element(&tab, signin_button_xpath, 3).await.unwrap_or(false) {
+                            println!("[Browser Auth] Clicking sign in button...");
+                            automation.click_element(&tab, signin_button_xpath)?;
+                            std::thread::sleep(std::time::Duration::from_secs(4));
+                        }
+                        break;
+                    }
+                    Err(e) => {
+                        println!("[Browser Auth] Failed to enter password: {}", e);
+                    }
+                }
+            }
+            Ok(false) => {
+                println!("[Browser Auth] Password input not found with selector: {}", selector);
+            }
+            Err(e) => {
+                println!("[Browser Auth] Error waiting for password input: {}", e);
+            }
         }
+    }
+    
+    if !password_entered {
+        println!("[Browser Auth] WARNING: Could not enter password");
     }
 
     // Step 4: 检查是否需要验证码
