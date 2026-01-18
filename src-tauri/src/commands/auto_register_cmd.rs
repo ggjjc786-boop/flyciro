@@ -1229,6 +1229,13 @@ async fn perform_browser_authorization(
     email_refresh_token: &str,
     browser_mode: BrowserMode,
 ) -> Result<()> {
+    // 写入日志文件用于调试
+    let log_file_path = std::env::temp_dir().join("kiro_browser_auth.log");
+    let mut log_content = format!("=== Browser Authorization Log ===\n");
+    log_content.push_str(&format!("Time: {}\n", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")));
+    log_content.push_str(&format!("Verification URL: {}\n", verification_url));
+    log_content.push_str(&format!("Email: {}\n\n", email));
+    
     let (width, height) = BrowserAutomation::generate_random_window_size();
     let os_version = BrowserAutomation::generate_random_os_version();
 
@@ -1251,11 +1258,13 @@ async fn perform_browser_authorization(
 
     // Navigate to verification URL
     println!("[Browser Auth] Navigating to: {}", verification_url);
+    log_content.push_str(&format!("[Browser Auth] Navigating to: {}\n", verification_url));
     tab.navigate_to(verification_url)
         .context("Failed to navigate to verification URL")?;
     tab.wait_until_navigated()?;
 
     println!("[Browser Auth] Waiting for page to fully load...");
+    log_content.push_str("[Browser Auth] Waiting for page to fully load...\n");
     std::thread::sleep(std::time::Duration::from_secs(5));
     
     // 打印当前 URL 用于调试
@@ -1264,27 +1273,37 @@ async fn perform_browser_authorization(
         Ok(result) => {
             if let Some(value) = result.value {
                 println!("[Browser Auth] Current URL: {}", value);
+                log_content.push_str(&format!("[Browser Auth] Current URL: {}\n", value));
             }
         }
         Err(e) => {
             println!("[Browser Auth] Failed to get current URL: {}", e);
+            log_content.push_str(&format!("[Browser Auth] Failed to get current URL: {}\n", e));
         }
     }
+    
+    // 保存日志到文件
+    let _ = std::fs::write(&log_file_path, &log_content);
+    println!("[Browser Auth] Log file: {:?}", log_file_path);
 
     // Step 1: 等待并点击 "Confirm and continue" 按钮（设备授权确认页面）
     println!("[Browser Auth] Looking for confirm and continue button...");
+    log_content.push_str("[Browser Auth] Looking for confirm and continue button...\n");
     let confirm_button_xpath = "//*[@id='cli_verification_btn']";
     
     if automation.wait_for_element(&tab, confirm_button_xpath, 5).await.unwrap_or(false) {
         println!("[Browser Auth] Found confirm button, clicking...");
+        log_content.push_str("[Browser Auth] Found confirm button, clicking...\n");
         automation.click_element(&tab, confirm_button_xpath)?;
         std::thread::sleep(std::time::Duration::from_secs(3));
     } else {
         println!("[Browser Auth] Confirm button not found, might be on login page already");
+        log_content.push_str("[Browser Auth] Confirm button not found, might be on login page already\n");
     }
 
     // Step 1.5: 检查是否在 AWS 通用登录页面，需要点击 "AWS Builder ID" 链接
     println!("[Browser Auth] Checking if we need to click AWS Builder ID link...");
+    log_content.push_str("[Browser Auth] Checking if we need to click AWS Builder ID link...\n");
     
     // 尝试查找 AWS Builder ID 链接
     let builder_id_link_script = r#"
@@ -1305,6 +1324,7 @@ async fn perform_browser_authorization(
         Ok(result) => {
             if let Some(value) = result.value {
                 println!("[Browser Auth] AWS Builder ID link result: {}", value);
+                log_content.push_str(&format!("[Browser Auth] AWS Builder ID link result: {}\n", value));
                 if value.as_str().unwrap_or("").contains("Clicked") {
                     std::thread::sleep(std::time::Duration::from_secs(3));
                 }
@@ -1312,11 +1332,16 @@ async fn perform_browser_authorization(
         }
         Err(e) => {
             println!("[Browser Auth] Error checking for AWS Builder ID link: {}", e);
+            log_content.push_str(&format!("[Browser Auth] Error checking for AWS Builder ID link: {}\n", e));
         }
     }
+    
+    // 保存中间日志
+    let _ = std::fs::write(&log_file_path, &log_content);
 
     // Step 2: 在 AWS Builder ID 登录页面输入邮箱
     println!("[Browser Auth] Waiting for email input on AWS Builder ID login page...");
+    log_content.push_str("[Browser Auth] Waiting for email input on AWS Builder ID login page...\n");
     
     // 先等待一下确保页面元素加载完成
     std::thread::sleep(std::time::Duration::from_secs(2));
@@ -1357,17 +1382,24 @@ async fn perform_browser_authorization(
         Ok(result) => {
             if let Some(value) = result.value {
                 println!("[Browser Auth] Email input result: {}", value);
+                log_content.push_str(&format!("[Browser Auth] Email input result: {}\n", value));
                 if value.as_str().unwrap_or("") != "success" {
                     println!("[Browser Auth] WARNING: Failed to input email, but continuing...");
+                    log_content.push_str("[Browser Auth] WARNING: Failed to input email, but continuing...\n");
                     // 不要立即返回错误，继续尝试
                 }
             }
         }
         Err(e) => {
             println!("[Browser Auth] Failed to input email: {}", e);
+            log_content.push_str(&format!("[Browser Auth] Failed to input email: {}\n", e));
             println!("[Browser Auth] WARNING: Continuing despite error...");
+            log_content.push_str("[Browser Auth] WARNING: Continuing despite error...\n");
         }
     }
+    
+    // 保存中间日志
+    let _ = std::fs::write(&log_file_path, &log_content);
     
     std::thread::sleep(std::time::Duration::from_millis(2000));
     
@@ -1534,10 +1566,21 @@ async fn perform_browser_authorization(
 
     // 等待授权完成
     println!("[Browser Auth] Waiting for authorization to complete...");
+    log_content.push_str("[Browser Auth] Waiting for authorization to complete...\n");
     std::thread::sleep(std::time::Duration::from_secs(5));
     
     // 清理浏览器数据
     let _ = automation.clear_browser_data();
+
+    log_content.push_str("[Browser Auth] Browser authorization completed successfully\n");
+    log_content.push_str(&format!("\n=== End of Log ===\n"));
+    
+    // 保存最终日志
+    if let Err(e) = std::fs::write(&log_file_path, &log_content) {
+        println!("[Browser Auth] Failed to write log file: {}", e);
+    } else {
+        println!("[Browser Auth] Log saved to: {:?}", log_file_path);
+    }
 
     println!("[Browser Auth] Browser authorization completed successfully");
     Ok(())
