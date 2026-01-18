@@ -305,29 +305,14 @@ async fn perform_registration(
 
     std::thread::sleep(std::time::Duration::from_secs(3));
 
-    // Click AWS Builder ID sign in button (通常是第一个或第二个按钮)
-    // 尝试多个可能的选择器
-    let aws_button_selectors = vec![
-        "/html/body/div[2]/div/div[1]/main/div/div/div/div/div/div/div/div[1]/button[1]", // 第一个按钮
-        "/html/body/div[2]/div/div[1]/main/div/div/div/div/div/div/div/div[1]/button[2]", // 第二个按钮
-        "//button[contains(text(), 'AWS Builder ID')]",
-        "//button[contains(text(), 'AWS')]",
-        "//button[contains(text(), 'Builder ID')]",
-    ];
+    // Click the third button (Google sign in button)
+    let google_button_xpath = "/html/body/div[2]/div/div[1]/main/div/div/div/div/div/div/div/div[1]/button[3]";
 
-    let mut button_found = false;
-    for selector in &aws_button_selectors {
-        if automation.wait_for_element(&tab, selector, 5).await.unwrap_or(false) {
-            println!("Found AWS Builder ID button with selector: {}", selector);
-            automation.click_element(&tab, selector)?;
-            std::thread::sleep(std::time::Duration::from_secs(4));
-            button_found = true;
-            break;
-        }
-    }
-
-    if !button_found {
-        return Err(anyhow!("AWS Builder ID sign-in button not found"));
+    if automation.wait_for_element(&tab, google_button_xpath, 10).await? {
+        automation.click_element(&tab, google_button_xpath)?;
+        std::thread::sleep(std::time::Duration::from_secs(4));
+    } else {
+        return Err(anyhow!("Google sign-in button not found"));
     }
 
     // Wait for email input page
