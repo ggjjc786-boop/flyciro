@@ -72,12 +72,15 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
   };
 
   const handleDelete = async (id: number) => {
-    try {
-      await api.deleteAccount(id);
-      await showSuccess('删除成功');
-      onRefresh();
-    } catch (error) {
-      await showError('删除失败: ' + error);
+    const confirmed = await showConfirm('确定要删除这条记录吗?', '确认删除');
+    if (confirmed) {
+      try {
+        await api.deleteAccount(id);
+        await showSuccess('删除成功');
+        onRefresh();
+      } catch (error) {
+        await showError('删除失败: ' + error);
+      }
     }
   };
 
@@ -327,8 +330,15 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
 
 function DetailModal({ account, onClose, colors, isDark }: { account: Account; onClose: () => void; colors: any; isDark: boolean }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[2000] animate-fade-in" onClick={onClose}>
-      <div className={`${colors.card} rounded-2xl shadow-xl w-[90%] max-w-[600px] max-h-[90vh] overflow-auto animate-slide-up`} onClick={e => e.stopPropagation()}>
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center animate-fade-in" 
+      style={{ zIndex: 9999 }}
+      onClick={onClose}
+    >
+      <div 
+        className={`${colors.card} rounded-2xl shadow-xl w-[90%] max-w-[600px] max-h-[90vh] overflow-auto animate-slide-up`} 
+        onClick={e => e.stopPropagation()}
+      >
         <div className={`flex items-center justify-between px-6 py-5 border-b ${colors.cardBorder}`}>
           <h2 className={`text-xl font-semibold ${colors.text}`}>账号详情</h2>
           <button className={`w-8 h-8 flex items-center justify-center rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} ${colors.textMuted} text-2xl transition-colors`} onClick={onClose}>×</button>
@@ -419,8 +429,15 @@ function EditModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[2000] animate-fade-in" onClick={onClose}>
-      <div className={`${colors.card} rounded-2xl shadow-xl w-[90%] max-w-[600px] max-h-[90vh] overflow-auto animate-slide-up`} onClick={e => e.stopPropagation()}>
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center animate-fade-in" 
+      style={{ zIndex: 9999 }}
+      onClick={onClose}
+    >
+      <div 
+        className={`${colors.card} rounded-2xl shadow-xl w-[90%] max-w-[600px] max-h-[90vh] overflow-auto animate-slide-up`} 
+        onClick={e => e.stopPropagation()}
+      >
         <div className={`flex items-center justify-between px-6 py-5 border-b ${colors.cardBorder}`}>
           <h2 className={`text-xl font-semibold ${colors.text}`}>编辑账号</h2>
           <button className={`w-8 h-8 flex items-center justify-center rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} ${colors.textMuted} text-2xl transition-colors`} onClick={onClose}>×</button>
@@ -507,8 +524,15 @@ function EmailModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[2000] animate-fade-in" onClick={onClose}>
-      <div className={`${colors.card} rounded-2xl shadow-xl w-[90%] max-w-[800px] h-[80vh] flex flex-col animate-slide-up`} onClick={e => e.stopPropagation()}>
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center animate-fade-in" 
+      style={{ zIndex: 9999 }}
+      onClick={onClose}
+    >
+      <div 
+        className={`${colors.card} rounded-2xl shadow-xl w-[90%] max-w-[800px] h-[80vh] flex flex-col animate-slide-up`} 
+        onClick={e => e.stopPropagation()}
+      >
         <div className={`flex items-center justify-between px-6 py-5 border-b ${colors.cardBorder}`}>
           <h2 className={`text-xl font-semibold ${colors.text}`}>邮件列表 - {account.email}</h2>
           <button className={`w-8 h-8 flex items-center justify-center rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} ${colors.textMuted} text-2xl transition-colors`} onClick={onClose}>×</button>
