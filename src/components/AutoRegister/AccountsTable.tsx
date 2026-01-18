@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Trash2, Edit, Eye, Play, Loader2, Mail } from 'lucide-react';
+import { Trash2, Edit, Eye, Play, Loader2, Mail, Upload } from 'lucide-react';
 import { Account } from '../../stores/autoRegisterStore';
 import { api, EmailMessage } from '../../api/autoRegister';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -23,6 +23,7 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [fetchingEmailId, setFetchingEmailId] = useState<number | null>(null);
   const [emails, setEmails] = useState<EmailMessage[]>([]);
+  const [importingId, setImportingId] = useState<number | null>(null);
 
   const itemsPerPage = 20;
 
@@ -114,6 +115,25 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
       alert('获取邮件失败: ' + error);
     } finally {
       setFetchingEmailId(null);
+    }
+  };
+
+  const handleImportToMain = async (accountId: number) => {
+    if (importingId) {
+      return;
+    }
+
+    if (window.confirm('确定要获取此账号的凭证并导入到主账号池吗？\n这将自动登录并获取 token 信息。')) {
+      setImportingId(accountId);
+      try {
+        const result = await api.getCredentialsAndImport(accountId);
+        alert(result);
+        onRefresh();
+      } catch (error) {
+        alert('操作失败: ' + error);
+      } finally {
+        setImportingId(null);
+      }
     }
   };
 
@@ -240,6 +260,20 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
                           <Loader2 size={16} className="animate-spin" />
                         ) : (
                           <Play size={16} />
+                        )}
+                      </button>
+                    )}
+                    {account.status === 'registered' && (
+                      <button
+                        className="w-8 h-8 flex items-center justify-center border border-green-500 text-green-500 rounded-lg transition-all hover:bg-green-500/10 disabled:opacity-50"
+                        onClick={() => handleImportToMain(account.id)}
+                        title="导入到账号池"
+                        disabled={importingId === account.id || importingId !== null}
+                      >
+                        {importingId === account.id ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Upload size={16} />
                         )}
                       </button>
                     )}

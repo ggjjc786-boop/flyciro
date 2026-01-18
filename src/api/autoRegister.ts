@@ -193,5 +193,9 @@ export const api = {
 
   async importToMain(): Promise<string> {
     return invoke('auto_register_import_to_main');
+  },
+
+  async getCredentialsAndImport(accountId: number): Promise<string> {
+    return invoke('auto_register_get_credentials_and_import', { accountId });
   }
 };

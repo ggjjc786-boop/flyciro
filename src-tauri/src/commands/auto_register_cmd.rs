@@ -966,6 +966,169 @@ pub async fn auto_register_import_to_main(
     ))
 }
 
+/// 获取单个账号的凭证并导入到主账号池
+#[tauri::command]
+pub async fn auto_register_get_credentials_and_import(
+    db: State<'_, DbState>,
+    app_state: State<'_, crate::state::AppState>,
+    account_id: i64,
+) -> Result<String, String> {
+    // 获取账号信息
+    let account = {
+        let conn = db.0.lock().map_err(|e| e.to_string())?;
+        database::get_account_by_id(&conn, account_id).map_err(|e| e.to_string())?
+    };
+
+    // 检查账号是否已注册
+    if account.status != AccountStatus::Registered {
+        return Err("账号尚未完成注册，请先完成注册".to_string());
+    }
+
+    // 获取浏览器设置
+    let settings = {
+        let conn = db.0.lock().map_err(|e| e.to_string())?;
+        database::get_settings(&conn).map_err(|e| e.to_string())?
+    };
+
+    // 执行获取凭证流程
+    println!("[Get Credentials] Starting to fetch credentials for account: {}", account.email);
+    let result = perform_kiro_login(
+        &account.email,
+        account.kiro_password.as_deref().unwrap_or(""),
+        &account.client_id,
+        &account.refresh_token,
+        settings.browser_mode.clone(),
+    ).await;
+
+    match result {
+        Ok(credentials) => {
+            // 更新自动注册数据库中的账号凭证信息
+            {
+                let conn = db.0.lock().map_err(|e| e.to_string())?;
+                database::update_account(
+                    &conn,
+                    AccountUpdate {
+                        id: account_id,
+                        email: None,
+                        email_password: None,
+                        client_id: None,
+                        refresh_token: None,
+                        kiro_password: None,
+                        status: None,
+                        error_reason: None,
+                        kiro_client_id: Some(credentials.client_id.clone()),
+                        kiro_client_secret: Some(credentials.client_secret.clone()),
+                        kiro_refresh_token: Some(credentials.refresh_token.clone()),
+                        kiro_access_token: Some(credentials.access_token.clone()),
+                        kiro_id_token: credentials.id_token.clone(),
+                    },
+                )
+                .map_err(|e| e.to_string())?;
+            }
+
+            println!("[Get Credentials] Credentials obtained, now importing to main account pool...");
+
+            // 导入到主账号池
+            use crate::providers::IdcProvider;
+            use crate::providers::RefreshMetadata;
+            use crate::kiro::get_machine_id;
+            use crate::codewhisperer_client::CodeWhispererClient;
+
+            let region = "us-east-1";
+            let metadata = RefreshMetadata {
+                client_id: Some(credentials.client_id.clone()),
+                client_secret: Some(credentials.client_secret.clone()),
+                region: Some(region.to_string()),
+                ..Default::default()
+            };
+
+            let idc_provider = IdcProvider::new("BuilderId", region, None);
+            
+            match idc_provider.refresh_token(&credentials.refresh_token, metadata).await {
+                Ok(auth_result) => {
+                    // 获取 usage 数据
+                    let machine_id = get_machine_id();
+                    let cw_client = CodeWhispererClient::new(&machine_id);
+                    let usage_call = cw_client.get_usage_limits(&auth_result.access_token).await;
+                    let (usage, is_banned) = match &usage_call {
+                        Ok(u) => (Some(u.clone()), false),
+                        Err(e) if e.starts_with("BANNED:") => (None, true),
+                        Err(_) => (None, false),
+                    };
+                    let usage_data = serde_json::to_value(&usage).unwrap_or(serde_json::Value::Null);
+                    
+                    let user_id = usage.as_ref()
+                        .and_then(|u| u.user_info.as_ref())
+                        .and_then(|u| u.user_id.clone());
+                    
+                    use sha2::{Digest, Sha256};
+                    let start_url = "https://view.awsapps.com/start";
+                    let mut hasher = Sha256::new();
+                    hasher.update(start_url.as_bytes());
+                    let client_id_hash = hex::encode(hasher.finalize());
+                    
+                    let expires_at = chrono::Local::now() + chrono::Duration::seconds(auth_result.expires_in);
+                    
+                    // 添加到主账号列表
+                    let mut store = app_state.store.lock().unwrap();
+                    
+                    // 检查是否已存在
+                    if let Some(existing) = store.accounts.iter_mut()
+                        .find(|a| a.email == account.email && a.provider.as_deref() == Some("BuilderId")) {
+                        // 更新现有账号
+                        existing.access_token = Some(auth_result.access_token);
+                        existing.refresh_token = Some(auth_result.refresh_token);
+                        existing.user_id = user_id;
+                        existing.expires_at = Some(expires_at.format("%Y/%m/%d %H:%M:%S").to_string());
+                        existing.client_id = Some(credentials.client_id);
+                        existing.client_secret = Some(credentials.client_secret);
+                        existing.region = Some(region.to_string());
+                        existing.client_id_hash = Some(client_id_hash);
+                        existing.id_token = auth_result.id_token;
+                        existing.sso_session_id = auth_result.sso_session_id;
+                        existing.usage_data = Some(usage_data);
+                        existing.status = if is_banned { "已封禁".to_string() } else { "正常".to_string() };
+                    } else {
+                        // 添加新账号
+                        let mut main_account = crate::account::Account::new(
+                            account.email.clone(),
+                            format!("Kiro BuilderId 账号 (自动注册)"),
+                        );
+                        main_account.access_token = Some(auth_result.access_token);
+                        main_account.refresh_token = Some(auth_result.refresh_token);
+                        main_account.provider = Some("BuilderId".to_string());
+                        main_account.user_id = user_id;
+                        main_account.expires_at = Some(expires_at.format("%Y/%m/%d %H:%M:%S").to_string());
+                        main_account.client_id = Some(credentials.client_id);
+                        main_account.client_secret = Some(credentials.client_secret);
+                        main_account.region = Some(region.to_string());
+                        main_account.client_id_hash = Some(client_id_hash);
+                        main_account.id_token = auth_result.id_token;
+                        main_account.sso_session_id = auth_result.sso_session_id;
+                        main_account.usage_data = Some(usage_data);
+                        main_account.status = if is_banned { "已封禁".to_string() } else { "正常".to_string() };
+                        store.accounts.insert(0, main_account);
+                    }
+                    
+                    // 保存
+                    store.save_to_file();
+                    println!("[Get Credentials] Successfully imported account: {}", account.email);
+                    
+                    Ok(format!("成功获取凭证并导入账号: {}", account.email))
+                }
+                Err(e) => {
+                    println!("[Get Credentials] Failed to import: {}", e);
+                    Err(format!("获取凭证成功但导入失败: {}", e))
+                }
+            }
+        }
+        Err(e) => {
+            println!("[Get Credentials] Failed to get credentials: {}", e);
+            Err(format!("获取凭证失败: {}", e))
+        }
+    }
+}
+
 /// 执行 Kiro 登录流程并获取凭证
 async fn perform_kiro_login(
     email: &str,
