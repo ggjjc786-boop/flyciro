@@ -3,7 +3,7 @@ import { Filter, Trash2, Settings, Loader2, PlayCircle, Download, Cloud } from '
 import { api } from '../../api/autoRegister';
 import { useStore } from '../../stores/autoRegisterStore';
 import { showConfirm, showSuccess, showError } from '../../utils/dialog';
-import './ControlPanel.css';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface ControlPanelProps {
   onFilterChange: (filter: string | null) => void;
@@ -34,6 +34,8 @@ function saveSyncConfig(config: SyncConfig) {
 }
 
 export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
+  const { colors, theme } = useTheme();
+  const isDark = theme === 'dark';
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
@@ -160,17 +162,21 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
   };
 
   return (
-    <div className="control-panel">
-      <div className="control-section">
-        <div className="control-section-header">
-          <Filter size={18} />
-          <span>状态筛选</span>
+    <div className={`card-glow ${colors.card} rounded-2xl border ${colors.cardBorder} p-6 shadow-sm`}>
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Filter size={18} className={colors.textMuted} />
+          <span className={`text-sm font-semibold ${colors.textMuted}`}>状态筛选</span>
         </div>
-        <div className="filter-buttons">
+        <div className="flex flex-wrap gap-2">
           {filters.map(filter => (
             <button
               key={filter.value || 'all'}
-              className={`filter-button ${selectedFilter === filter.value ? 'active' : ''}`}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                selectedFilter === filter.value
+                  ? 'bg-blue-500 text-white shadow-sm'
+                  : `${colors.card} ${colors.text} border ${colors.cardBorder} hover:scale-[1.02]`
+              }`}
               onClick={() => handleFilterChange(filter.value)}
             >
               {filter.label}
@@ -179,62 +185,62 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
         </div>
       </div>
 
-      <div className="control-section">
-        <div className="control-section-header">
-          <Settings size={18} />
-          <span>操作</span>
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Settings size={18} className={colors.textMuted} />
+          <span className={`text-sm font-semibold ${colors.textMuted}`}>操作</span>
         </div>
-        <div className="action-buttons-panel">
+        <div className="grid grid-cols-2 gap-3">
           <button
-            className="control-action-button"
+            className={`px-4 py-3 border rounded-xl text-sm font-medium transition-all hover:scale-[1.02] flex items-center justify-center gap-2 ${colors.text} ${colors.card} ${colors.cardBorder}`}
             onClick={() => setIsSettingsOpen(true)}
           >
             <Settings size={18} />
             系统设置
           </button>
           <button
-            className="control-action-button control-action-button-primary"
+            className="px-4 py-3 border border-blue-500 text-blue-500 rounded-xl text-sm font-medium transition-all hover:bg-blue-500/10 flex items-center justify-center gap-2 disabled:opacity-50"
             onClick={handleBatchRegistration}
             disabled={isLoading}
           >
             {isLoading ? (
-              <Loader2 size={18} className="spin" />
+              <Loader2 size={18} className="animate-spin" />
             ) : (
               <PlayCircle size={18} />
             )}
             全部注册
           </button>
           <button
-            className="control-action-button"
+            className={`px-4 py-3 border rounded-xl text-sm font-medium transition-all hover:scale-[1.02] flex items-center justify-center gap-2 ${colors.text} ${colors.card} ${colors.cardBorder} disabled:opacity-50`}
             onClick={handleExport}
             disabled={isLoading}
           >
             {isLoading ? (
-              <Loader2 size={18} className="spin" />
+              <Loader2 size={18} className="animate-spin" />
             ) : (
               <Download size={18} />
             )}
             导出数据
           </button>
           <button
-            className="control-action-button control-action-button-danger"
+            className="px-4 py-3 border border-red-500 text-red-500 rounded-xl text-sm font-medium transition-all hover:bg-red-500/10 flex items-center justify-center gap-2 disabled:opacity-50"
             onClick={handleDeleteAll}
             disabled={isLoading}
           >
             {isLoading ? (
-              <Loader2 size={18} className="spin" />
+              <Loader2 size={18} className="animate-spin" />
             ) : (
               <Trash2 size={18} />
             )}
             删除全部
           </button>
           <button
-            className="control-action-button control-action-button-sync"
+            className="px-4 py-3 border border-cyan-500 text-cyan-500 rounded-xl text-sm font-medium transition-all hover:bg-cyan-500/10 flex items-center justify-center gap-2 col-span-2 disabled:opacity-50"
             onClick={handleOpenSyncModal}
             disabled={isSyncing}
           >
             {isSyncing ? (
-              <Loader2 size={18} className="spin" />
+              <Loader2 size={18} className="animate-spin" />
             ) : (
               <Cloud size={18} />
             )}
@@ -244,25 +250,25 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
       </div>
 
       {isSettingsOpen && (
-        <div className="modal-overlay" onClick={() => setIsSettingsOpen(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>系统设置</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[2000] animate-fade-in" onClick={() => setIsSettingsOpen(false)}>
+          <div className={`${colors.card} rounded-2xl shadow-xl w-[90%] max-w-[600px] max-h-[90vh] overflow-auto animate-slide-up`} onClick={e => e.stopPropagation()}>
+            <div className={`flex items-center justify-between px-6 py-5 border-b ${colors.cardBorder}`}>
+              <h2 className={`text-xl font-semibold ${colors.text}`}>系统设置</h2>
               <button
-                className="modal-close"
+                className={`w-8 h-8 flex items-center justify-center rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} ${colors.textMuted} text-2xl transition-colors`}
                 onClick={() => setIsSettingsOpen(false)}
               >
                 ×
               </button>
             </div>
-            <div className="modal-body">
-              <div className="settings-group">
-                <h3>浏览器运行模式</h3>
-                <p className="settings-description">
+            <div className="p-6">
+              <div className="mb-6">
+                <h3 className={`text-base font-semibold ${colors.text} mb-2`}>浏览器运行模式</h3>
+                <p className={`text-sm ${colors.textMuted} mb-4`}>
                   选择浏览器在注册过程中的显示方式
                 </p>
-                <div className="settings-radio-group">
-                  <label className="settings-radio-label">
+                <div className="space-y-3">
+                  <label className={`flex items-start gap-3 cursor-pointer ${isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-gray-50 hover:bg-gray-100'} rounded-xl p-4 transition-all`}>
                     <input
                       type="radio"
                       name="browser_mode"
@@ -274,13 +280,14 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
                           browser_mode: e.target.value as 'background' | 'foreground',
                         })
                       }
+                      className="mt-0.5 w-4 h-4 rounded-lg border-gray-300 text-blue-500 focus:ring-blue-500"
                     />
-                    <span className="settings-radio-text">
-                      <strong>后台运行</strong>
-                      <small>浏览器窗口不可见，在后台执行注册流程</small>
-                    </span>
+                    <div className="flex-1">
+                      <div className={`text-sm font-medium ${colors.text}`}>后台运行</div>
+                      <div className={`text-xs ${colors.textMuted} mt-1`}>浏览器窗口不可见，在后台执行注册流程</div>
+                    </div>
                   </label>
-                  <label className="settings-radio-label">
+                  <label className={`flex items-start gap-3 cursor-pointer ${isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-gray-50 hover:bg-gray-100'} rounded-xl p-4 transition-all`}>
                     <input
                       type="radio"
                       name="browser_mode"
@@ -292,30 +299,31 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
                           browser_mode: e.target.value as 'background' | 'foreground',
                         })
                       }
+                      className="mt-0.5 w-4 h-4 rounded-lg border-gray-300 text-blue-500 focus:ring-blue-500"
                     />
-                    <span className="settings-radio-text">
-                      <strong>前台运行</strong>
-                      <small>浏览器窗口可见，可实时观察注册过程</small>
-                    </span>
+                    <div className="flex-1">
+                      <div className={`text-sm font-medium ${colors.text}`}>前台运行</div>
+                      <div className={`text-xs ${colors.textMuted} mt-1`}>浏览器窗口可见，可实时观察注册过程</div>
+                    </div>
                   </label>
                 </div>
               </div>
             </div>
-            <div className="modal-footer">
+            <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t ${colors.cardBorder}`}>
               <button
-                className="button-secondary"
+                className={`px-5 py-2.5 border rounded-xl font-medium transition-all hover:scale-[1.02] ${colors.text} ${colors.card} ${colors.cardBorder}`}
                 onClick={() => setIsSettingsOpen(false)}
               >
                 取消
               </button>
               <button
-                className="button-primary"
+                className="px-5 py-2.5 bg-blue-500 text-white rounded-xl font-medium shadow-sm hover:bg-blue-600 disabled:opacity-50 transition-all flex items-center gap-2"
                 onClick={handleSaveSettings}
                 disabled={isLoading}
               >
                 {isLoading ? (
                   <>
-                    <Loader2 size={18} className="spin" />
+                    <Loader2 size={18} className="animate-spin" />
                     保存中...
                   </>
                 ) : (
@@ -328,65 +336,67 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
       )}
 
       {isSyncModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsSyncModalOpen(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>同步到服务器</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[2000] animate-fade-in" onClick={() => setIsSyncModalOpen(false)}>
+          <div className={`${colors.card} rounded-2xl shadow-xl w-[90%] max-w-[600px] max-h-[90vh] overflow-auto animate-slide-up`} onClick={e => e.stopPropagation()}>
+            <div className={`flex items-center justify-between px-6 py-5 border-b ${colors.cardBorder}`}>
+              <h2 className={`text-xl font-semibold ${colors.text}`}>同步到服务器</h2>
               <button
-                className="modal-close-button"
+                className={`w-8 h-8 flex items-center justify-center rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} ${colors.textMuted} text-2xl transition-colors`}
                 onClick={() => setIsSyncModalOpen(false)}
               >
                 ×
               </button>
             </div>
-            <div className="modal-body">
-              <div className="settings-group">
-                <h3>服务器配置</h3>
-                <p className="settings-description">
+            <div className="p-6">
+              <div>
+                <h3 className={`text-base font-semibold ${colors.text} mb-2`}>服务器配置</h3>
+                <p className={`text-sm ${colors.textMuted} mb-4`}>
                   将已注册的账号同步到闲鱼售卖服务器
                 </p>
-                <div className="sync-form">
-                  <div className="form-field">
-                    <label htmlFor="serverUrl">服务器地址</label>
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="serverUrl" className={`block text-sm font-medium ${colors.text} mb-2`}>服务器地址</label>
                     <input
                       type="text"
                       id="serverUrl"
                       value={syncConfig.serverUrl}
                       onChange={e => setSyncConfig({ ...syncConfig, serverUrl: e.target.value })}
                       placeholder="例如: https://your-server.com"
+                      className={`w-full px-4 py-3 border rounded-xl ${colors.text} ${colors.input} ${colors.inputFocus} focus:ring-2 transition-all`}
                     />
                   </div>
-                  <div className="form-field">
-                    <label htmlFor="secretKey">同步密钥</label>
+                  <div>
+                    <label htmlFor="secretKey" className={`block text-sm font-medium ${colors.text} mb-2`}>同步密钥</label>
                     <input
                       type="password"
                       id="secretKey"
                       value={syncConfig.secretKey}
                       onChange={e => setSyncConfig({ ...syncConfig, secretKey: e.target.value })}
                       placeholder="请输入同步密钥"
+                      className={`w-full px-4 py-3 border rounded-xl ${colors.text} ${colors.input} ${colors.inputFocus} focus:ring-2 transition-all`}
                     />
                   </div>
                 </div>
-                <p className="settings-hint" style={{ marginTop: '10px', color: '#888', fontSize: '12px' }}>
+                <p className={`text-xs ${colors.textMuted} mt-3`}>
                   只会同步状态为"已完成"的账号。同步后，账号将可在服务器上通过卡密提取。
                 </p>
               </div>
             </div>
-            <div className="modal-footer">
+            <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t ${colors.cardBorder}`}>
               <button
-                className="button-secondary"
+                className={`px-5 py-2.5 border rounded-xl font-medium transition-all hover:scale-[1.02] ${colors.text} ${colors.card} ${colors.cardBorder}`}
                 onClick={() => setIsSyncModalOpen(false)}
               >
                 取消
               </button>
               <button
-                className="button-primary"
+                className="px-5 py-2.5 bg-blue-500 text-white rounded-xl font-medium shadow-sm hover:bg-blue-600 disabled:opacity-50 transition-all flex items-center gap-2"
                 onClick={handleSync}
                 disabled={isSyncing}
               >
                 {isSyncing ? (
                   <>
-                    <Loader2 size={18} className="spin" />
+                    <Loader2 size={18} className="animate-spin" />
                     同步中...
                   </>
                 ) : (
