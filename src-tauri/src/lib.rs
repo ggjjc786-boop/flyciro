@@ -1,9 +1,30 @@
+// Core modules
+mod account;
+mod auth;
+mod auth_social;
+mod state;
+mod kiro;
+mod kiro_auth_client;
+mod codewhisperer_client;
+mod providers;
+mod mcp;
+mod powers;
+mod steering;
+mod process;
+mod browser;
+mod deep_link_handler;
+
+// Shared modules (used by both main app and auto_register)
 mod database;
 mod models;
 mod graph_api;
 mod browser_automation;
-mod commands;
 mod aws_sso_client;
+
+// Commands
+mod commands;
+
+// Auto register feature
 mod auto_register;
 
 use tauri::Manager;
@@ -14,6 +35,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_deep_link::init())
+        .manage(state::AppState::new())
         .setup(|app| {
             // Initialize database
             let app_handle = app.handle().clone();

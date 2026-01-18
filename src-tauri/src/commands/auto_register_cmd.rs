@@ -1,6 +1,8 @@
-use crate::auto_register::{database, DbState};
+use crate::auto_register::database::{self, DbState};
 use crate::auto_register::models::*;
-use crate::auto_register::{GraphApiClient, BrowserAutomation, AWSSSOClient};
+use crate::auto_register::graph_api::GraphApiClient;
+use crate::auto_register::browser_automation::BrowserAutomation;
+use crate::auto_register::aws_sso_client::AWSSSOClient;
 use tauri::State;
 use anyhow::{Result, Context, anyhow};
 
