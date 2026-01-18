@@ -72,15 +72,12 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
   };
 
   const handleDelete = async (id: number) => {
-    const confirmed = await showConfirm('确定要删除这条记录吗?', '确认删除');
-    if (confirmed) {
-      try {
-        await api.deleteAccount(id);
-        await showSuccess('删除成功');
-        onRefresh();
-      } catch (error) {
-        await showError('删除失败: ' + error);
-      }
+    try {
+      await api.deleteAccount(id);
+      await showSuccess('删除成功');
+      onRefresh();
+    } catch (error) {
+      await showError('删除失败: ' + error);
     }
   };
 
