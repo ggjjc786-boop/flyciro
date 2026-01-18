@@ -1301,143 +1301,167 @@ async fn perform_browser_authorization(
         }
     }
 
-    // Step 2: 等待 AWS 登录页面并输入邮箱（可能是通用 AWS 登录页面）
-    println!("[Browser Auth] Waiting for email input on AWS login page...");
+    // Step 2: 在 AWS Builder ID 登录页面输入邮箱
+    println!("[Browser Auth] Waiting for email input on AWS Builder ID login page...");
     
-    // 先尝试普通的 email input（通用 AWS 登录页面）
-    let generic_email_input_script = r#"
-        (function() {
+    // 使用通用的 email input 选择器
+    let input_email_script = format!(
+        r#"
+        (function() {{
             var emailInput = document.querySelector('input[type="email"]') || 
                            document.querySelector('input[name="email"]') ||
                            document.querySelector('input[placeholder*="email"]') ||
                            document.querySelector('input[placeholder*="Email"]');
-            if (emailInput) {
-                return 'found';
+            if (emailInput) {{
+                emailInput.focus();
+                emailInput.value = "{}";
+                
+                // 使用 React 的方式触发事件
+                var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                nativeInputValueSetter.call(emailInput, "{}");
+                
+                emailInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                emailInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                emailInput.dispatchEvent(new Event('blur', {{ bubbles: true }}));
+                return 'success';
+            }}
+            return 'failed';
+        }})()
+        "#,
+        email, email
+    );
+    
+    match tab.evaluate(&input_email_script, true) {
+        Ok(result) => {
+            if let Some(value) = result.value {
+                println!("[Browser Auth] Email input result: {}", value);
+                if value.as_str().unwrap_or("") != "success" {
+                    return Err(anyhow!("Failed to input email"));
+                }
+            }
+        }
+        Err(e) => {
+            println!("[Browser Auth] Failed to input email: {}", e);
+            return Err(anyhow!("Failed to input email: {}", e));
+        }
+    }
+    
+    std::thread::sleep(std::time::Duration::from_millis(2000));
+    
+    // 点击继续按钮
+    println!("[Browser Auth] Clicking continue/next button...");
+    let click_continue_script = r#"
+        (function() {
+            var buttons = document.querySelectorAll('button');
+            for (var i = 0; i < buttons.length; i++) {
+                var text = buttons[i].textContent || buttons[i].innerText || '';
+                if (text.indexOf('继续') !== -1 || text.indexOf('Continue') !== -1 || text.indexOf('Next') !== -1) {
+                    buttons[i].click();
+                    return 'clicked';
+                }
+            }
+            // 如果没找到文本匹配的，尝试找 submit 按钮
+            var submitBtn = document.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.click();
+                return 'clicked_submit';
             }
             return 'not_found';
         })()
     "#;
     
-    let is_generic_page = match tab.evaluate(generic_email_input_script, true) {
+    match tab.evaluate(click_continue_script, true) {
         Ok(result) => {
             if let Some(value) = result.value {
-                value.as_str().unwrap_or("") == "found"
-            } else {
-                false
+                println!("[Browser Auth] Continue button click result: {}", value);
             }
         }
-        Err(_) => false
-    };
-    
-    if is_generic_page {
-        println!("[Browser Auth] Found generic AWS login page, entering email...");
-        
-        // 在通用页面输入邮箱
-        let input_email_script = format!(
-            r#"
-            (function() {{
-                var emailInput = document.querySelector('input[type="email"]') || 
-                               document.querySelector('input[name="email"]') ||
-                               document.querySelector('input[placeholder*="email"]') ||
-                               document.querySelector('input[placeholder*="Email"]');
-                if (emailInput) {{
-                    emailInput.focus();
-                    emailInput.value = "{}";
-                    emailInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                    emailInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                    return 'success';
-                }}
-                return 'failed';
-            }})()
-            "#,
-            email
-        );
-        
-        match tab.evaluate(&input_email_script, true) {
-            Ok(result) => {
-                if let Some(value) = result.value {
-                    println!("[Browser Auth] Email input result: {}", value);
-                }
-            }
-            Err(e) => {
-                println!("[Browser Auth] Failed to input email: {}", e);
-            }
+        Err(e) => {
+            println!("[Browser Auth] Failed to click continue: {}", e);
         }
-        
-        std::thread::sleep(std::time::Duration::from_millis(1500));
-        
-        // 点击继续按钮
-        let click_continue_script = r#"
-            (function() {
-                var buttons = document.querySelectorAll('button');
-                for (var i = 0; i < buttons.length; i++) {
-                    var text = buttons[i].textContent || buttons[i].innerText || '';
-                    if (text.indexOf('继续') !== -1 || text.indexOf('Continue') !== -1 || text.indexOf('Next') !== -1) {
-                        buttons[i].click();
-                        return 'clicked';
-                    }
-                }
-                // 如果没找到文本匹配的，尝试找 submit 按钮
-                var submitBtn = document.querySelector('button[type="submit"]');
-                if (submitBtn) {
-                    submitBtn.click();
-                    return 'clicked_submit';
-                }
-                return 'not_found';
-            })()
-        "#;
-        
-        match tab.evaluate(click_continue_script, true) {
-            Ok(result) => {
-                if let Some(value) = result.value {
-                    println!("[Browser Auth] Continue button click result: {}", value);
-                }
-            }
-            Err(e) => {
-                println!("[Browser Auth] Failed to click continue: {}", e);
-            }
-        }
-        
-        std::thread::sleep(std::time::Duration::from_secs(4));
     }
     
-    // Step 2.5: 等待 AWS Builder ID 登录页面并输入邮箱
-    println!("[Browser Auth] Waiting for AWS Builder ID email input...");
-    let email_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
-    
-    if automation.wait_for_element(&tab, email_input_xpath, 15).await.unwrap_or(false) {
-        println!("[Browser Auth] Found email input, entering email: {}", email);
-        automation.input_text(&tab, email_input_xpath, email)?;
-        std::thread::sleep(std::time::Duration::from_millis(2000));
-
-        // 点击下一步按钮
-        let next_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
-        println!("[Browser Auth] Clicking next button...");
-        automation.click_element(&tab, next_button_xpath)?;
-        std::thread::sleep(std::time::Duration::from_secs(4));
-    } else {
-        println!("[Browser Auth] Email input not found");
-        return Err(anyhow!("AWS Builder ID email input not found"));
-    }
+    std::thread::sleep(std::time::Duration::from_secs(4));
 
     // Step 3: 等待密码输入页面并输入密码
-    println!("[Browser Auth] Waiting for AWS Builder ID password input...");
-    let password_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
+    println!("[Browser Auth] Waiting for password input...");
+    std::thread::sleep(std::time::Duration::from_secs(2));
     
-    if automation.wait_for_element(&tab, password_input_xpath, 15).await.unwrap_or(false) {
-        println!("[Browser Auth] Found password input, entering password");
-        automation.input_text(&tab, password_input_xpath, kiro_password)?;
-        std::thread::sleep(std::time::Duration::from_millis(2000));
-
-        // 点击登录按钮
-        let signin_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
-        println!("[Browser Auth] Clicking sign in button...");
-        automation.click_element(&tab, signin_button_xpath)?;
-        std::thread::sleep(std::time::Duration::from_secs(4));
-    } else {
-        println!("[Browser Auth] Password input not found");
-        return Err(anyhow!("AWS Builder ID password input not found"));
+    let input_password_script = format!(
+        r#"
+        (function() {{
+            var passwordInput = document.querySelector('input[type="password"]') || 
+                              document.querySelector('input[name="password"]');
+            if (passwordInput) {{
+                passwordInput.focus();
+                passwordInput.value = "{}";
+                
+                // 使用 React 的方式触发事件
+                var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                nativeInputValueSetter.call(passwordInput, "{}");
+                
+                passwordInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                passwordInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                passwordInput.dispatchEvent(new Event('blur', {{ bubbles: true }}));
+                return 'success';
+            }}
+            return 'failed';
+        }})()
+        "#,
+        kiro_password, kiro_password
+    );
+    
+    match tab.evaluate(&input_password_script, true) {
+        Ok(result) => {
+            if let Some(value) = result.value {
+                println!("[Browser Auth] Password input result: {}", value);
+                if value.as_str().unwrap_or("") != "success" {
+                    return Err(anyhow!("Failed to input password"));
+                }
+            }
+        }
+        Err(e) => {
+            println!("[Browser Auth] Failed to input password: {}", e);
+            return Err(anyhow!("Failed to input password: {}", e));
+        }
     }
+    
+    std::thread::sleep(std::time::Duration::from_millis(2000));
+    
+    // 点击登录按钮
+    println!("[Browser Auth] Clicking sign in button...");
+    let click_signin_script = r#"
+        (function() {
+            var buttons = document.querySelectorAll('button');
+            for (var i = 0; i < buttons.length; i++) {
+                var text = buttons[i].textContent || buttons[i].innerText || '';
+                if (text.indexOf('登录') !== -1 || text.indexOf('Sign in') !== -1 || text.indexOf('Sign In') !== -1 || text.indexOf('继续') !== -1 || text.indexOf('Continue') !== -1) {
+                    buttons[i].click();
+                    return 'clicked';
+                }
+            }
+            // 如果没找到文本匹配的，尝试找 submit 按钮
+            var submitBtn = document.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.click();
+                return 'clicked_submit';
+            }
+            return 'not_found';
+        })()
+    "#;
+    
+    match tab.evaluate(click_signin_script, true) {
+        Ok(result) => {
+            if let Some(value) = result.value {
+                println!("[Browser Auth] Sign in button click result: {}", value);
+            }
+        }
+        Err(e) => {
+            println!("[Browser Auth] Failed to click sign in: {}", e);
+        }
+    }
+    
+    std::thread::sleep(std::time::Duration::from_secs(4));
 
     // Step 4: 检查是否需要验证码
     println!("[Browser Auth] Checking for verification code requirement...");
