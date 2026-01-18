@@ -1,7 +1,7 @@
 /// AWS SSO OIDC Client
 /// 实现 AWS SSO OIDC API 调用，用于 Kiro/Builder ID 认证
 
-use crate::models::{ClientRegistration, DeviceAuthorizationResponse, TokenResponse, DevicePollResult};
+use crate::auto_register::models::{ClientRegistration, DeviceAuthorizationResponse, TokenResponse, DevicePollResult};
 use reqwest::Client;
 use serde::Deserialize;
 use std::time::Duration;

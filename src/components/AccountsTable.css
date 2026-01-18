@@ -1,0 +1,411 @@
+.accounts-table-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--bg-primary);
+}
+
+.table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.search-input {
+  min-width: 300px;
+}
+
+.table-stats {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.table-wrapper {
+  flex: 1;
+  overflow: auto;
+}
+
+.accounts-table {
+  min-width: 100%;
+}
+
+.accounts-table th {
+  cursor: pointer;
+  user-select: none;
+}
+
+.accounts-table th:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.email-cell {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+}
+
+.password-hidden {
+  font-family: monospace;
+  color: var(--text-tertiary);
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-not-registered {
+  background-color: var(--info-light);
+  color: var(--info);
+}
+
+.status-in-progress {
+  background-color: var(--warning-light);
+  color: var(--warning);
+}
+
+.status-registered {
+  background-color: var(--success-light);
+  color: var(--success);
+}
+
+.status-error {
+  background-color: var(--error-light);
+  color: var(--error);
+}
+
+.error-cell {
+  max-width: 200px;
+}
+
+.error-text {
+  color: var(--error);
+  font-size: 13px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.action-button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.action-button:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+}
+
+.action-button-primary {
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.action-button-primary:hover:not(:disabled) {
+  background-color: var(--accent-light);
+}
+
+.action-button-danger {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.action-button-danger:hover:not(:disabled) {
+  background-color: var(--error-light);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px 24px;
+  background-color: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+}
+
+.pagination-button {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.pagination-button:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.pagination-info {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.modal-content {
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: auto;
+  animation: slideUp 0.3s ease-in-out;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background-color: transparent;
+  color: var(--text-secondary);
+  font-size: 24px;
+  border: none;
+}
+
+.modal-close:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+.detail-item {
+  display: flex;
+  margin-bottom: 16px;
+}
+
+.detail-item label {
+  flex-shrink: 0;
+  width: 120px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.detail-item span {
+  flex: 1;
+  color: var(--text-primary);
+}
+
+.monospace {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+}
+
+.break-all {
+  word-break: break-all;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+}
+
+.button-primary {
+  background-color: var(--accent-primary);
+  color: white;
+}
+
+.button-primary:hover {
+  background-color: var(--accent-hover);
+}
+
+.button-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.button-secondary:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+/* Email Modal Styles */
+.modal-large {
+  max-width: 800px;
+  height: 80vh;
+}
+
+.email-modal-body {
+  height: calc(80vh - 80px);
+  overflow: auto;
+  padding: 0;
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-tertiary);
+  font-size: 16px;
+}
+
+.email-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.email-item {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.email-item:hover {
+  background-color: var(--bg-hover);
+}
+
+.email-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.email-subject {
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 16px;
+}
+
+.email-time {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.email-from {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.email-preview {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.email-detail {
+  padding: 24px;
+}
+
+.back-button {
+  background-color: transparent;
+  color: var(--accent-primary);
+  border: none;
+  padding: 8px 0;
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.back-button:hover {
+  text-decoration: underline;
+}
+
+.email-detail-header {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.email-detail-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.email-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.email-body {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  overflow-wrap: break-word;
+}
+
+.email-body img {
+  max-width: 100%;
+  height: auto;
+}
+
+.email-body a {
+  color: var(--accent-primary);
+}

@@ -1,0 +1,82 @@
+.title-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background-color: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  z-index: 1000;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+  user-select: none;
+}
+
+.title-bar.hidden {
+  transform: translateY(-100%);
+}
+
+.title-bar.visible {
+  transform: translateY(0);
+}
+
+.title-bar-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 16px;
+}
+
+.title-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.title-bar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.title-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.title-bar-button {
+  width: 46px;
+  height: 40px;
+  padding: 0;
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: none;
+  border-radius: 0;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.title-bar-button:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.title-bar-button.window-button {
+  width: 46px;
+}
+
+.title-bar-button.close-button:hover {
+  background-color: #e81123;
+  color: white;
+}
+
+/* 暗色主题下的关闭按钮 */
+[data-theme="dark"] .title-bar-button.close-button:hover {
+  background-color: #e81123;
+  color: white;
+}

@@ -1,0 +1,176 @@
+.import-panel {
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.import-header {
+  padding: 20px 24px;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.import-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.import-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.import-body {
+  padding: 24px;
+}
+
+.import-textarea-container {
+  margin-bottom: 20px;
+}
+
+.import-textarea {
+  width: 100%;
+  min-height: 200px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.import-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.import-button {
+  flex: 1;
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.import-button-primary {
+  background-color: var(--accent-primary);
+  color: white;
+}
+
+.import-button-primary:hover:not(:disabled) {
+  background-color: var(--accent-hover);
+}
+
+.import-button-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.import-button-secondary:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.import-result {
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  border: 1px solid var(--border-color);
+}
+
+.import-result-header h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.import-result-stats {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.import-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+}
+
+.import-stat-success {
+  background-color: var(--success-light);
+}
+
+.import-stat-error {
+  background-color: var(--error-light);
+}
+
+.import-stat-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.import-stat-value {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.import-stat-success .import-stat-value {
+  color: var(--success);
+}
+
+.import-stat-error .import-stat-value {
+  color: var(--error);
+}
+
+.import-errors {
+  margin-top: 20px;
+}
+
+.import-errors h5 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.import-errors-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.import-error-item {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.import-error-line {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--error);
+  margin-bottom: 4px;
+}
+
+.import-error-reason {
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.import-error-content {
+  font-size: 12px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  color: var(--text-tertiary);
+  background-color: var(--bg-tertiary);
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  word-break: break-all;
+}

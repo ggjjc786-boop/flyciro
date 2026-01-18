@@ -10,6 +10,7 @@ function useMenuItems() {
   return [
     { id: 'home', label: t('nav.home'), icon: Home },
     { id: 'token', label: t('nav.accounts'), icon: Key },
+    { id: 'auto-register', label: '自动注册', icon: Settings2 },
     { id: 'kiro-config', label: t('nav.kiroConfig'), icon: Settings2 },
     { id: 'login', label: t('nav.desktopOAuth'), icon: LogIn, desc: t('nav.socialIdC') },
     { id: 'web-oauth', label: t('nav.webOAuth'), icon: Globe, desc: t('nav.webviewLogin') },
