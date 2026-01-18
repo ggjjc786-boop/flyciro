@@ -220,28 +220,26 @@ pub async fn auto_register_start_registration(
     match result {
         Ok(kiro_password) => {
             // Update account with success
-            {
-                let conn = db.0.lock().map_err(|e| e.to_string())?;
-                database::update_account(
-                    &conn,
-                    AccountUpdate {
-                        id: account_id,
-                        email: None,
-                        email_password: None,
-                        client_id: None,
-                        refresh_token: None,
-                        kiro_password: Some(kiro_password.clone()),
-                        status: Some(AccountStatus::Registered),
-                        error_reason: None,
-                        kiro_client_id: None,
-                        kiro_client_secret: None,
-                        kiro_refresh_token: None,
-                        kiro_access_token: None,
-                        kiro_id_token: None,
-                    },
-                )
-                .map_err(|e| e.to_string())?;
-            } // conn 在这里被释放
+            let conn = db.0.lock().map_err(|e| e.to_string())?;
+            database::update_account(
+                &conn,
+                AccountUpdate {
+                    id: account_id,
+                    email: None,
+                    email_password: None,
+                    client_id: None,
+                    refresh_token: None,
+                    kiro_password: Some(kiro_password.clone()),
+                    status: Some(AccountStatus::Registered),
+                    error_reason: None,
+                    kiro_client_id: None,
+                    kiro_client_secret: None,
+                    kiro_refresh_token: None,
+                    kiro_access_token: None,
+                    kiro_id_token: None,
+                },
+            )
+            .map_err(|e| e.to_string())?;
 
             // 自动获取 Kiro 凭证
             println!("[Auto Register] Registration successful, now fetching Kiro credentials...");
@@ -256,35 +254,33 @@ pub async fn auto_register_start_registration(
             match credentials_result {
                 Ok(credentials) => {
                     // 更新账号凭证信息
-                    {
-                        let conn = db.0.lock().map_err(|e| e.to_string())?;
-                        database::update_account(
-                            &conn,
-                            AccountUpdate {
-                                id: account_id,
-                                email: None,
-                                email_password: None,
-                                client_id: None,
-                                refresh_token: None,
-                                kiro_password: None,
-                                status: None,
-                                error_reason: None,
-                                kiro_client_id: Some(credentials.client_id.clone()),
-                                kiro_client_secret: Some(credentials.client_secret.clone()),
-                                kiro_refresh_token: Some(credentials.refresh_token.clone()),
-                                kiro_access_token: Some(credentials.access_token.clone()),
-                                kiro_id_token: credentials.id_token.clone(),
-                            },
-                        )
-                        .map_err(|e| e.to_string())?;
-                    } // conn 在这里被释放
+                    let conn = db.0.lock().map_err(|e| e.to_string())?;
+                    database::update_account(
+                        &conn,
+                        AccountUpdate {
+                            id: account_id,
+                            email: None,
+                            email_password: None,
+                            client_id: None,
+                            refresh_token: None,
+                            kiro_password: None,
+                            status: None,
+                            error_reason: None,
+                            kiro_client_id: Some(credentials.client_id.clone()),
+                            kiro_client_secret: Some(credentials.client_secret.clone()),
+                            kiro_refresh_token: Some(credentials.refresh_token.clone()),
+                            kiro_access_token: Some(credentials.access_token.clone()),
+                            kiro_id_token: credentials.id_token.clone(),
+                        },
+                    )
+                    .map_err(|e| e.to_string())?;
 
                     println!("[Auto Register] Kiro credentials obtained successfully!");
-                    Ok(format!("注册完成！密�? {}\n已自动获�?AWS Builder ID 凭证", kiro_password))
+                    Ok(format!("注册完成！密码: {}\n已自动获取 AWS Builder ID 凭证", kiro_password))
                 }
                 Err(e) => {
                     println!("[Auto Register] Failed to get Kiro credentials: {}", e);
-                    Ok(format!("注册完成！密�? {}\n但获取凭证失�? {}", kiro_password, e))
+                    Ok(format!("注册完成！密码: {}\n但获取凭证失败: {}", kiro_password, e))
                 }
             }
         }
@@ -664,7 +660,7 @@ pub async fn auto_register_export_accounts(
     Ok(lines.join("\n"))
 }
 
-/// 获取账号最新邮�?
+/// 获取账号最新邮件
 #[tauri::command]
 pub async fn auto_register_fetch_latest_email(
     db: State<'_, DbState>,
@@ -676,7 +672,7 @@ pub async fn auto_register_fetch_latest_email(
         database::get_account_by_id(&conn, account_id).map_err(|e| e.to_string())?
     };
     
-    // 使用 Graph API 获取最新邮�?
+    // 使用 Graph API 获取最新邮件
     let graph_client = GraphApiClient::new();
     
     // 获取 access token
@@ -685,7 +681,7 @@ pub async fn auto_register_fetch_latest_email(
         .await
         .map_err(|e| format!("获取访问令牌失败: {}", e))?;
     
-    // 获取最新的 10 封邮�?
+    // 获取最新的 10 封邮件
     let emails = graph_client
         .fetch_recent_emails(&access_token, &account.email, 10)
         .await
@@ -708,10 +704,10 @@ pub async fn auto_register_get_kiro_credentials(
 
     // 检查账号是否已注册
     if account.status != AccountStatus::Registered {
-        return Err("账号尚未完成注册，请先完成注�?.to_string());
+        return Err("账号尚未完成注册，请先完成注册".to_string());
     }
 
-    // 获取浏览器设�?
+    // 获取浏览器设置
     let settings = {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         database::get_settings(&conn).map_err(|e| e.to_string())?
@@ -763,13 +759,13 @@ pub async fn auto_register_get_kiro_credentials(
 pub async fn auto_register_batch_fetch_kiro_credentials(
     db: State<'_, DbState>,
 ) -> Result<String, String> {
-    // 获取所有已注册的账�?
+    // 获取所有已注册的账号
     let accounts = {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         database::get_accounts_by_status(&conn, "registered").map_err(|e| e.to_string())?
     };
 
-    // 过滤出没�?Kiro 凭证的账�?
+    // 过滤出没有 Kiro 凭证的账号
     let accounts_without_credentials: Vec<_> = accounts
         .into_iter()
         .filter(|a| a.kiro_client_id.is_none())
@@ -783,7 +779,7 @@ pub async fn auto_register_batch_fetch_kiro_credentials(
     let mut success_count = 0;
     let mut error_count = 0;
 
-    // 获取浏览器设�?
+    // 获取浏览器设置
     let settings = {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         database::get_settings(&conn).map_err(|e| e.to_string())?
@@ -839,7 +835,7 @@ pub async fn auto_register_batch_fetch_kiro_credentials(
     ))
 }
 
-/// 导入已注册账号到主账号列�?
+/// 导入已注册账号到主账号列表
 #[tauri::command]
 pub async fn auto_register_import_to_main(
     db: State<'_, DbState>,
@@ -850,7 +846,7 @@ pub async fn auto_register_import_to_main(
     use crate::kiro::get_machine_id;
     use crate::codewhisperer_client::CodeWhispererClient;
     
-    // 获取所有已注册且有凭证的账�?
+    // 获取所有已注册且有凭证的账号
     let accounts = {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         let all_accounts = database::get_accounts_by_status(&conn, "registered").map_err(|e| e.to_string())?;
@@ -860,7 +856,7 @@ pub async fn auto_register_import_to_main(
     };
 
     if accounts.is_empty() {
-        return Ok("没有可导入的账号（需要先获取凭证�?.to_string());
+        return Ok("没有可导入的账号（需要先获取凭证）".to_string());
     }
 
     let mut success_count = 0;
@@ -925,9 +921,9 @@ pub async fn auto_register_import_to_main(
                     existing.id_token = auth_result.id_token;
                     existing.sso_session_id = auth_result.sso_session_id;
                     existing.usage_data = Some(usage_data);
-                    existing.status = if is_banned { "已封�?.to_string() } else { "正常".to_string() };
+                    existing.status = if is_banned { "已封禁".to_string() } else { "正常".to_string() };
                 } else {
-                    // 添加新账�?
+                    // 添加新账号
                     let mut main_account = crate::account::Account::new(
                         account.email.clone(),
                         format!("Kiro BuilderId 账号 (自动注册)"),
@@ -944,7 +940,7 @@ pub async fn auto_register_import_to_main(
                     main_account.id_token = auth_result.id_token;
                     main_account.sso_session_id = auth_result.sso_session_id;
                     main_account.usage_data = Some(usage_data);
-                    main_account.status = if is_banned { "已封�?.to_string() } else { "正常".to_string() };
+                    main_account.status = if is_banned { "已封禁".to_string() } else { "正常".to_string() };
                     store.accounts.insert(0, main_account);
                 }
                 
@@ -961,12 +957,12 @@ pub async fn auto_register_import_to_main(
     }
 
     Ok(format!(
-        "导入完成！成�? {}, 失败: {}",
+        "导入完成！成功: {}, 失败: {}",
         success_count, error_count
     ))
 }
 
-/// 执行 Kiro 登录流程并获取凭�?
+/// 执行 Kiro 登录流程并获取凭证
 async fn perform_kiro_login(
     email: &str,
     kiro_password: &str,
@@ -977,10 +973,10 @@ async fn perform_kiro_login(
     let start_url = "https://view.awsapps.com/start";
     let sso_client = AWSSSOClient::new("us-east-1");
 
-    // Step 1: 注册设备客户�?
+    // Step 1: 注册设备客户端
     println!("[Kiro Login] Step 1: Registering device client...");
     let client_reg = sso_client.register_device_client(start_url).await
-        .map_err(|e| anyhow!("注册设备客户端失�? {}", e))?;
+        .map_err(|e| anyhow!("注册设备客户端失败: {}", e))?;
 
     // Step 2: 发起设备授权
     println!("[Kiro Login] Step 2: Starting device authorization...");
@@ -991,13 +987,13 @@ async fn perform_kiro_login(
     ).await
         .map_err(|e| anyhow!("发起设备授权失败: {}", e))?;
 
-    // Step 3: 使用浏览器自动登录（类似注册流程�?
-    println!("[Kiro Login] Step 3: Launching browser for login...");
+    // Step 3: 启动浏览器自动完成授权
+    println!("[Kiro Login] Step 3: Launching browser for authorization...");
     let verification_url = device_auth.verification_uri_complete.as_ref()
         .unwrap_or(&device_auth.verification_uri);
     
-    // 启动浏览器完成登录流�?
-    let browser_result = perform_simple_browser_login(
+    // 启动浏览器完成授权流程
+    let browser_result = perform_browser_authorization(
         verification_url,
         email,
         kiro_password,
@@ -1007,8 +1003,7 @@ async fn perform_kiro_login(
     ).await;
 
     if let Err(e) = browser_result {
-        println!("[Kiro Login] Browser login failed: {}", e);
-        return Err(anyhow!("浏览器登录失�? {}", e));
+        return Err(anyhow!("浏览器授权失败: {}", e));
     }
 
     // Step 4: 轮询获取 Token
@@ -1044,10 +1039,10 @@ async fn perform_kiro_login(
                 continue;
             }
             Ok(DevicePollResult::Expired) => {
-                return Err(anyhow!("设备授权已过�?));
+                return Err(anyhow!("设备授权已过期"));
             }
             Ok(DevicePollResult::Denied) => {
-                return Err(anyhow!("授权被拒�?));
+                return Err(anyhow!("授权被拒绝"));
             }
             Err(e) => {
                 return Err(anyhow!("轮询 Token 失败: {}", e));
@@ -1058,8 +1053,8 @@ async fn perform_kiro_login(
     Err(anyhow!("获取 Token 超时"))
 }
 
-/// 简化的浏览器登录流程（类似注册流程�?
-async fn perform_simple_browser_login(
+/// 在浏览器中完成授权流程
+async fn perform_browser_authorization(
     verification_url: &str,
     email: &str,
     kiro_password: &str,
@@ -1084,110 +1079,386 @@ async fn perform_simple_browser_login(
     let browser = automation.launch_browser()?;
     let tab = browser.new_tab().context("Failed to create new tab")?;
 
+    // Apply fingerprint protection
     automation.apply_fingerprint_protection(&tab)?;
 
-    // 导航到验�?URL
-    println!("[Browser Login] Navigating to: {}", verification_url);
+    // Navigate to verification URL
+    println!("[Browser Auth] Navigating to: {}", verification_url);
     tab.navigate_to(verification_url)
         .context("Failed to navigate to verification URL")?;
     tab.wait_until_navigated()?;
+
     std::thread::sleep(std::time::Duration::from_secs(3));
 
-    // Step 1: 点击确认按钮（如果有�?
-    println!("[Browser Login] Looking for confirm button...");
-    let confirm_button_xpath = "//*[@id='cli_verification_btn']";
-    if automation.wait_for_element(&tab, confirm_button_xpath, 5).await.unwrap_or(false) {
-        println!("[Browser Login] Found confirm button, clicking...");
-        automation.click_element(&tab, confirm_button_xpath)?;
-        std::thread::sleep(std::time::Duration::from_secs(3));
-    }
-
-    // Step 2: 等待登录页面并输入邮�?
-    println!("[Browser Login] Waiting for email input...");
-    let email_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
+    // Step 1: 等待并点击 "Confirm and continue" 按钮（设备授权确认页面）
+    println!("[Browser Auth] Looking for confirm button...");
+    let confirm_button_selectors = vec![
+        "//button[contains(text(), 'Confirm and continue')]",
+        "//button[contains(text(), 'Confirm')]",
+        "//input[@type='submit' and contains(@value, 'Confirm')]",
+        "//*[@id='cli_verification_btn']",
+    ];
     
-    if automation.wait_for_element(&tab, email_input_xpath, 10).await.unwrap_or(false) {
-        println!("[Browser Login] Found email input, entering email...");
-        automation.input_text(&tab, email_input_xpath, email)?;
-        std::thread::sleep(std::time::Duration::from_millis(1500));
-
-        // 点击下一�?
-        let next_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
-        if automation.wait_for_element(&tab, next_button_xpath, 3).await.unwrap_or(false) {
-            println!("[Browser Login] Clicking next button...");
-            automation.click_element(&tab, next_button_xpath)?;
+    for selector in &confirm_button_selectors {
+        if automation.wait_for_element(&tab, selector, 3).await.unwrap_or(false) {
+            println!("[Browser Auth] Found confirm button, clicking...");
+            automation.click_element(&tab, selector)?;
             std::thread::sleep(std::time::Duration::from_secs(3));
-        }
-    } else {
-        println!("[Browser Login] Email input not found, might already be logged in");
-    }
-
-    // Step 3: 输入密码
-    println!("[Browser Login] Waiting for password input...");
-    let password_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
-    
-    if automation.wait_for_element(&tab, password_input_xpath, 10).await.unwrap_or(false) {
-        println!("[Browser Login] Found password input, entering password...");
-        automation.input_text(&tab, password_input_xpath, kiro_password)?;
-        std::thread::sleep(std::time::Duration::from_millis(1500));
-
-        // 点击登录
-        let signin_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
-        if automation.wait_for_element(&tab, signin_button_xpath, 3).await.unwrap_or(false) {
-            println!("[Browser Login] Clicking sign in button...");
-            automation.click_element(&tab, signin_button_xpath)?;
-            std::thread::sleep(std::time::Duration::from_secs(4));
+            break;
         }
     }
 
-    // Step 4: 检查是否需要验证码
-    println!("[Browser Login] Checking for verification code...");
-    let code_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
+    // Step 2: 检查是否在 AWS Builder ID 登录页面
+    println!("[Browser Auth] Checking for login page...");
+    std::thread::sleep(std::time::Duration::from_secs(2));
     
-    if automation.wait_for_element(&tab, code_input_xpath, 5).await.unwrap_or(false) {
-        println!("[Browser Login] Verification code required, fetching from email...");
+    // 先打印页面信息帮助调试
+    let page_info_script = r#"
+        (function() {
+            var inputs = document.querySelectorAll('input');
+            var buttons = document.querySelectorAll('button');
+            var info = {
+                url: window.location.href,
+                title: document.title,
+                inputs: [],
+                buttons: []
+            };
+            inputs.forEach(function(input) {
+                info.inputs.push({
+                    type: input.type,
+                    name: input.name,
+                    id: input.id,
+                    placeholder: input.placeholder,
+                    className: input.className
+                });
+            });
+            buttons.forEach(function(btn) {
+                info.buttons.push({
+                    text: btn.textContent.trim(),
+                    type: btn.type,
+                    className: btn.className
+                });
+            });
+            return JSON.stringify(info, null, 2);
+        })()
+    "#;
+    
+    match tab.evaluate(page_info_script, true) {
+        Ok(result) => {
+            if let Some(value) = result.value {
+                println!("[Browser Auth] Page info: {}", value);
+            }
+        }
+        Err(e) => {
+            println!("[Browser Auth] Failed to get page info: {}", e);
+        }
+    }
+    
+    // AWS Builder ID 登录页面的邮箱输入框 - 优先使用 CSS 选择器
+    let email_input_selectors = vec![
+        // CSS selectors (优先)
+        "input[type='email']",
+        "input[name='email']",
+        "input[id*='email']",
+        "input[placeholder*='example.com']",
+        "input[placeholder*='username']",
+        "input[placeholder*='email']",
+        "input[placeholder*='Email']",
+        "input[autocomplete='email']",
+        "input[autocomplete='username']",
+        // Fallback: 页面上的第一个文本输入框
+        "input[type='text']",
+        "input:not([type='hidden']):not([type='submit']):not([type='button'])",
+    ];
+    
+    let mut email_input_found = false;
+    for selector in &email_input_selectors {
+        println!("[Browser Auth] Trying email selector: {}", selector);
+        if automation.wait_for_element(&tab, selector, 3).await.unwrap_or(false) {
+            println!("[Browser Auth] Found email input at: {}", selector);
+            automation.input_text(&tab, selector, email)?;
+            email_input_found = true;
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            break;
+        }
+    }
+    
+    if !email_input_found {
+        println!("[Browser Auth] Email input not found, checking if already logged in...");
+        // 可能已经登录，检查是否有授权按钮
+        let allow_selectors = vec![
+            "//button[contains(text(), 'Allow')]",
+            "//button[contains(text(), 'Authorize')]",
+            "//input[@type='submit' and contains(@value, 'Allow')]",
+        ];
         
-        let graph_client = GraphApiClient::new();
-        match graph_client
-            .wait_for_verification_code(email_client_id, email_refresh_token, email, 60)
-            .await
-        {
-            Ok(verification_code) => {
-                println!("[Browser Login] Got verification code, entering...");
-                automation.input_text(&tab, code_input_xpath, &verification_code)?;
-                std::thread::sleep(std::time::Duration::from_millis(1500));
-
-                // 点击验证
-                let verify_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
-                if automation.wait_for_element(&tab, verify_button_xpath, 3).await.unwrap_or(false) {
-                    println!("[Browser Login] Clicking verify button...");
-                    automation.click_element(&tab, verify_button_xpath)?;
-                    std::thread::sleep(std::time::Duration::from_secs(4));
+        for selector in &allow_selectors {
+            if automation.wait_for_element(&tab, selector, 5).await.unwrap_or(false) {
+                println!("[Browser Auth] Found allow button, clicking...");
+                automation.click_element(&tab, selector)?;
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                return Ok(());
+            }
+        }
+    }
+    
+    // Step 3: 点击下一步/继续按钮（邮箱输入后）
+    let next_button_selectors = vec![
+        // CSS selectors for "继续" / "Continue" / "Next" buttons
+        "button[type='submit']",
+        "input[type='submit']",
+        "button.awsui-button-variant-primary",
+        "button[data-testid='continue-button']",
+        "button[data-testid='next-button']",
+    ];
+    
+    println!("[Browser Auth] Looking for continue button...");
+    for selector in &next_button_selectors {
+        println!("[Browser Auth] Trying button selector: {}", selector);
+        if automation.wait_for_element(&tab, selector, 3).await.unwrap_or(false) {
+            println!("[Browser Auth] Clicking next/continue button: {}", selector);
+            automation.click_element(&tab, selector)?;
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            break;
+        }
+    }
+    
+    // 如果上面的选择器都没找到，尝试用 JavaScript 查找包含特定文字的按钮
+    let click_by_text_script = r#"
+        (function() {
+            var buttons = document.querySelectorAll('button, input[type="submit"]');
+            var targetTexts = ['继续', 'Continue', 'Next', '下一步'];
+            for (var i = 0; i < buttons.length; i++) {
+                var btn = buttons[i];
+                var text = btn.textContent || btn.value || '';
+                for (var j = 0; j < targetTexts.length; j++) {
+                    if (text.indexOf(targetTexts[j]) !== -1) {
+                        btn.scrollIntoView({behavior: 'smooth', block: 'center'});
+                        btn.click();
+                        return 'Clicked: ' + text;
+                    }
                 }
             }
-            Err(e) => {
-                println!("[Browser Login] Failed to get verification code: {}", e);
+            return 'No button found';
+        })()
+    "#;
+    
+    match tab.evaluate(click_by_text_script, true) {
+        Ok(result) => {
+            if let Some(value) = result.value {
+                println!("[Browser Auth] Click by text result: {}", value);
             }
+        }
+        Err(e) => {
+            println!("[Browser Auth] Click by text failed: {}", e);
+        }
+    }
+    
+    std::thread::sleep(std::time::Duration::from_secs(3));
+
+    // Step 4: 输入密码
+    println!("[Browser Auth] Looking for password input...");
+    let password_input_selectors = vec![
+        // CSS selectors
+        "input[type='password']",
+        "input[name='password']",
+        "input[id*='password']",
+        "input[autocomplete='current-password']",
+    ];
+    
+    for selector in &password_input_selectors {
+        println!("[Browser Auth] Trying password selector: {}", selector);
+        if automation.wait_for_element(&tab, selector, 10).await.unwrap_or(false) {
+            println!("[Browser Auth] Found password input, entering password...");
+            automation.input_text(&tab, selector, kiro_password)?;
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            
+            // 点击登录按钮
+            let signin_button_selectors = vec![
+                "button[type='submit']",
+                "input[type='submit']",
+                "button.awsui-button-variant-primary",
+            ];
+            
+            for btn_selector in &signin_button_selectors {
+                if automation.wait_for_element(&tab, btn_selector, 3).await.unwrap_or(false) {
+                    println!("[Browser Auth] Clicking sign in button: {}", btn_selector);
+                    automation.click_element(&tab, btn_selector)?;
+                    std::thread::sleep(std::time::Duration::from_secs(4));
+                    break;
+                }
+            }
+            
+            // 如果上面的选择器都没找到，尝试用 JavaScript 查找
+            let click_signin_script = r#"
+                (function() {
+                    var buttons = document.querySelectorAll('button, input[type="submit"]');
+                    var targetTexts = ['登录', '继续', 'Sign in', 'Login', 'Continue', 'Submit'];
+                    for (var i = 0; i < buttons.length; i++) {
+                        var btn = buttons[i];
+                        var text = btn.textContent || btn.value || '';
+                        for (var j = 0; j < targetTexts.length; j++) {
+                            if (text.indexOf(targetTexts[j]) !== -1) {
+                                btn.click();
+                                return 'Clicked: ' + text;
+                            }
+                        }
+                    }
+                    return 'No button found';
+                })()
+            "#;
+            
+            match tab.evaluate(click_signin_script, true) {
+                Ok(result) => {
+                    if let Some(value) = result.value {
+                        println!("[Browser Auth] Sign in click result: {}", value);
+                    }
+                }
+                Err(_) => {}
+            }
+            
+            std::thread::sleep(std::time::Duration::from_secs(4));
+            break;
         }
     }
 
-    // Step 5: 点击允许/授权按钮
-    println!("[Browser Login] Looking for allow button...");
-    let allow_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/span/span/awsui-button/button";
+    // Step 5: 检查是否需要邮箱验证码 (MFA)
+    println!("[Browser Auth] Checking for MFA/verification code...");
+    let code_input_selectors = vec![
+        // CSS selectors
+        "input[placeholder*='code']",
+        "input[placeholder*='Code']",
+        "input[placeholder*='验证码']",
+        "input[placeholder*='verification']",
+        "input[id*='code']",
+        "input[name*='code']",
+        "input[autocomplete='one-time-code']",
+    ];
     
-    if automation.wait_for_element(&tab, allow_button_xpath, 10).await.unwrap_or(false) {
-        println!("[Browser Login] Found allow button, clicking...");
-        automation.click_element(&tab, allow_button_xpath)?;
-        std::thread::sleep(std::time::Duration::from_secs(3));
+    for selector in &code_input_selectors {
+        println!("[Browser Auth] Trying code selector: {}", selector);
+        if automation.wait_for_element(&tab, selector, 5).await.unwrap_or(false) {
+            println!("[Browser Auth] Found verification code input, fetching code from email...");
+            
+            // 使用 Graph API 获取验证码
+            let graph_client = GraphApiClient::new();
+            match graph_client
+                .wait_for_verification_code(email_client_id, email_refresh_token, email, 60)
+                .await
+            {
+                Ok(verification_code) => {
+                    println!("[Browser Auth] Got verification code, entering...");
+                    automation.input_text(&tab, selector, &verification_code)?;
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                    
+                    // 点击验证/提交按钮
+                    let verify_script = r#"
+                        (function() {
+                            var buttons = document.querySelectorAll('button, input[type="submit"]');
+                            var targetTexts = ['验证', '继续', '提交', 'Verify', 'Submit', 'Continue'];
+                            for (var i = 0; i < buttons.length; i++) {
+                                var btn = buttons[i];
+                                var text = btn.textContent || btn.value || '';
+                                for (var j = 0; j < targetTexts.length; j++) {
+                                    if (text.indexOf(targetTexts[j]) !== -1) {
+                                        btn.click();
+                                        return 'Clicked: ' + text;
+                                    }
+                                }
+                            }
+                            // If no text match, click any submit button
+                            var submitBtn = document.querySelector('button[type="submit"], input[type="submit"]');
+                            if (submitBtn) {
+                                submitBtn.click();
+                                return 'Clicked submit button';
+                            }
+                            return 'No button found';
+                        })()
+                    "#;
+                    
+                    match tab.evaluate(verify_script, true) {
+                        Ok(result) => {
+                            if let Some(value) = result.value {
+                                println!("[Browser Auth] Verify click result: {}", value);
+                            }
+                        }
+                        Err(_) => {}
+                    }
+                    
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+                }
+                Err(e) => {
+                    println!("[Browser Auth] Failed to get verification code: {}", e);
+                }
+            }
+            break;
+        }
     }
 
-    // 等待授权完成
-    println!("[Browser Login] Waiting for authorization to complete...");
-    std::thread::sleep(std::time::Duration::from_secs(5));
+    // Step 6: 检查并点击授权/允许按钮
+    println!("[Browser Auth] Looking for authorization button...");
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    
+    // 使用 JavaScript 查找授权按钮
+    let allow_script = r#"
+        (function() {
+            var buttons = document.querySelectorAll('button, input[type="submit"]');
+            var targetTexts = ['允许', '授权', 'Allow', 'Authorize', 'Grant', 'Confirm'];
+            for (var i = 0; i < buttons.length; i++) {
+                var btn = buttons[i];
+                var text = btn.textContent || btn.value || '';
+                for (var j = 0; j < targetTexts.length; j++) {
+                    if (text.indexOf(targetTexts[j]) !== -1) {
+                        btn.click();
+                        return 'Clicked: ' + text;
+                    }
+                }
+            }
+            return 'No allow button found';
+        })()
+    "#;
+    
+    match tab.evaluate(allow_script, true) {
+        Ok(result) => {
+            if let Some(value) = result.value {
+                println!("[Browser Auth] Allow button result: {}", value);
+            }
+        }
+        Err(_) => {}
+    }
+    
+    std::thread::sleep(std::time::Duration::from_secs(3));
 
-    // 清理浏览器数�?
+    // Step 7: 等待授权完成（成功页面或 URL 变化）
+    println!("[Browser Auth] Waiting for authorization completion...");
+    std::thread::sleep(std::time::Duration::from_secs(5));
+    
+    // 检查成功指示
+    let check_success_script = r#"
+        (function() {
+            var body = document.body.textContent || '';
+            var successTexts = ['success', 'Success', 'authorized', 'Authorized', 'complete', 'Complete', 'You can close', '成功', '授权完成'];
+            for (var i = 0; i < successTexts.length; i++) {
+                if (body.indexOf(successTexts[i]) !== -1) {
+                    return 'Success: found "' + successTexts[i] + '"';
+                }
+            }
+            return 'No success indicator found';
+        })()
+    "#;
+    
+    match tab.evaluate(check_success_script, true) {
+        Ok(result) => {
+            if let Some(value) = result.value {
+                println!("[Browser Auth] Success check: {}", value);
+            }
+        }
+        Err(_) => {}
+    }
+
+    // 清理浏览器数据
     let _ = automation.clear_browser_data();
 
-    println!("[Browser Login] Browser login completed");
     Ok(())
-}
+}
+
