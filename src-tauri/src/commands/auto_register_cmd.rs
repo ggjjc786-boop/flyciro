@@ -1258,128 +1258,60 @@ async fn perform_browser_authorization(
     std::thread::sleep(std::time::Duration::from_secs(3));
 
     // Step 1: 等待并点击 "Confirm and continue" 按钮（设备授权确认页面）
-    println!("[Browser Auth] Looking for confirm button...");
-    let confirm_button_selectors = vec![
-        "//button[contains(text(), 'Confirm and continue')]",
-        "//button[contains(text(), 'Confirm')]",
-        "//input[@type='submit' and contains(@value, 'Confirm')]",
-        "//*[@id='cli_verification_btn']",
-    ];
+    println!("[Browser Auth] Looking for confirm and continue button...");
+    let confirm_button_xpath = "//*[@id='cli_verification_btn']";
     
-    for selector in &confirm_button_selectors {
-        if automation.wait_for_element(&tab, selector, 3).await.unwrap_or(false) {
-            println!("[Browser Auth] Found confirm button, clicking...");
-            automation.click_element(&tab, selector)?;
-            std::thread::sleep(std::time::Duration::from_secs(3));
-            break;
-        }
+    if automation.wait_for_element(&tab, confirm_button_xpath, 5).await.unwrap_or(false) {
+        println!("[Browser Auth] Found confirm button, clicking...");
+        automation.click_element(&tab, confirm_button_xpath)?;
+        std::thread::sleep(std::time::Duration::from_secs(3));
+    } else {
+        println!("[Browser Auth] Confirm button not found, might be on login page already");
     }
 
-    // Step 2: 等待登录页面并输入邮箱
-    println!("[Browser Auth] Waiting for email input...");
+    // Step 2: 等待 AWS Builder ID 登录页面并输入邮箱
+    println!("[Browser Auth] Waiting for AWS Builder ID email input...");
+    let email_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
     
-    // 尝试多个可能的邮箱输入框选择器
-    let email_input_selectors = vec![
-        "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input",
-        "//input[@type='email']",
-        "//input[@name='email']",
-        "//awsui-input//input",
-    ];
-    
-    let mut email_entered = false;
-    for selector in &email_input_selectors {
-        println!("[Browser Auth] Trying email selector: {}", selector);
-        match automation.wait_for_element(&tab, selector, 5).await {
-            Ok(true) => {
-                println!("[Browser Auth] Found email input with selector: {}", selector);
-                match automation.input_text(&tab, selector, email) {
-                    Ok(_) => {
-                        println!("[Browser Auth] Successfully entered email");
-                        email_entered = true;
-                        std::thread::sleep(std::time::Duration::from_millis(1500));
-                        
-                        // 点击下一步
-                        let next_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
-                        if automation.wait_for_element(&tab, next_button_xpath, 3).await.unwrap_or(false) {
-                            println!("[Browser Auth] Clicking next button...");
-                            automation.click_element(&tab, next_button_xpath)?;
-                            std::thread::sleep(std::time::Duration::from_secs(3));
-                        }
-                        break;
-                    }
-                    Err(e) => {
-                        println!("[Browser Auth] Failed to enter email: {}", e);
-                    }
-                }
-            }
-            Ok(false) => {
-                println!("[Browser Auth] Email input not found with selector: {}", selector);
-            }
-            Err(e) => {
-                println!("[Browser Auth] Error waiting for email input: {}", e);
-            }
-        }
-    }
-    
-    if !email_entered {
-        println!("[Browser Auth] WARNING: Could not enter email, might already be logged in or page structure changed");
+    if automation.wait_for_element(&tab, email_input_xpath, 15).await.unwrap_or(false) {
+        println!("[Browser Auth] Found email input, entering email: {}", email);
+        automation.input_text(&tab, email_input_xpath, email)?;
+        std::thread::sleep(std::time::Duration::from_millis(2000));
+
+        // 点击下一步按钮
+        let next_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
+        println!("[Browser Auth] Clicking next button...");
+        automation.click_element(&tab, next_button_xpath)?;
+        std::thread::sleep(std::time::Duration::from_secs(4));
+    } else {
+        println!("[Browser Auth] Email input not found");
+        return Err(anyhow!("AWS Builder ID email input not found"));
     }
 
-    // Step 3: 输入密码
-    println!("[Browser Auth] Waiting for password input...");
+    // Step 3: 等待密码输入页面并输入密码
+    println!("[Browser Auth] Waiting for AWS Builder ID password input...");
+    let password_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
     
-    // 尝试多个可能的密码输入框选择器
-    let password_input_selectors = vec![
-        "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input",
-        "//input[@type='password']",
-        "//input[@name='password']",
-        "//awsui-input//input[@type='password']",
-    ];
-    
-    let mut password_entered = false;
-    for selector in &password_input_selectors {
-        println!("[Browser Auth] Trying password selector: {}", selector);
-        match automation.wait_for_element(&tab, selector, 5).await {
-            Ok(true) => {
-                println!("[Browser Auth] Found password input with selector: {}", selector);
-                match automation.input_text(&tab, selector, kiro_password) {
-                    Ok(_) => {
-                        println!("[Browser Auth] Successfully entered password");
-                        password_entered = true;
-                        std::thread::sleep(std::time::Duration::from_millis(1500));
-                        
-                        // 点击登录
-                        let signin_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
-                        if automation.wait_for_element(&tab, signin_button_xpath, 3).await.unwrap_or(false) {
-                            println!("[Browser Auth] Clicking sign in button...");
-                            automation.click_element(&tab, signin_button_xpath)?;
-                            std::thread::sleep(std::time::Duration::from_secs(4));
-                        }
-                        break;
-                    }
-                    Err(e) => {
-                        println!("[Browser Auth] Failed to enter password: {}", e);
-                    }
-                }
-            }
-            Ok(false) => {
-                println!("[Browser Auth] Password input not found with selector: {}", selector);
-            }
-            Err(e) => {
-                println!("[Browser Auth] Error waiting for password input: {}", e);
-            }
-        }
-    }
-    
-    if !password_entered {
-        println!("[Browser Auth] WARNING: Could not enter password");
+    if automation.wait_for_element(&tab, password_input_xpath, 15).await.unwrap_or(false) {
+        println!("[Browser Auth] Found password input, entering password");
+        automation.input_text(&tab, password_input_xpath, kiro_password)?;
+        std::thread::sleep(std::time::Duration::from_millis(2000));
+
+        // 点击登录按钮
+        let signin_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
+        println!("[Browser Auth] Clicking sign in button...");
+        automation.click_element(&tab, signin_button_xpath)?;
+        std::thread::sleep(std::time::Duration::from_secs(4));
+    } else {
+        println!("[Browser Auth] Password input not found");
+        return Err(anyhow!("AWS Builder ID password input not found"));
     }
 
     // Step 4: 检查是否需要验证码
-    println!("[Browser Auth] Checking for verification code...");
+    println!("[Browser Auth] Checking for verification code requirement...");
     let code_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
     
-    if automation.wait_for_element(&tab, code_input_xpath, 5).await.unwrap_or(false) {
+    if automation.wait_for_element(&tab, code_input_xpath, 8).await.unwrap_or(false) {
         println!("[Browser Auth] Verification code required, fetching from email...");
         
         let graph_client = GraphApiClient::new();
@@ -1388,32 +1320,35 @@ async fn perform_browser_authorization(
             .await
         {
             Ok(verification_code) => {
-                println!("[Browser Auth] Got verification code, entering...");
+                println!("[Browser Auth] Got verification code: {}, entering...", verification_code);
                 automation.input_text(&tab, code_input_xpath, &verification_code)?;
-                std::thread::sleep(std::time::Duration::from_millis(1500));
+                std::thread::sleep(std::time::Duration::from_millis(2000));
 
-                // 点击验证
+                // 点击验证按钮
                 let verify_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
-                if automation.wait_for_element(&tab, verify_button_xpath, 3).await.unwrap_or(false) {
-                    println!("[Browser Auth] Clicking verify button...");
-                    automation.click_element(&tab, verify_button_xpath)?;
-                    std::thread::sleep(std::time::Duration::from_secs(4));
-                }
+                println!("[Browser Auth] Clicking verify button...");
+                automation.click_element(&tab, verify_button_xpath)?;
+                std::thread::sleep(std::time::Duration::from_secs(4));
             }
             Err(e) => {
                 println!("[Browser Auth] Failed to get verification code: {}", e);
+                return Err(anyhow!("Failed to get verification code: {}", e));
             }
         }
+    } else {
+        println!("[Browser Auth] No verification code required");
     }
 
-    // Step 5: 点击允许/授权按钮
-    println!("[Browser Auth] Looking for allow button...");
+    // Step 5: 等待并点击允许/授权按钮
+    println!("[Browser Auth] Looking for allow/authorize button...");
     let allow_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/span/span/awsui-button/button";
     
-    if automation.wait_for_element(&tab, allow_button_xpath, 10).await.unwrap_or(false) {
+    if automation.wait_for_element(&tab, allow_button_xpath, 15).await.unwrap_or(false) {
         println!("[Browser Auth] Found allow button, clicking...");
         automation.click_element(&tab, allow_button_xpath)?;
         std::thread::sleep(std::time::Duration::from_secs(3));
+    } else {
+        println!("[Browser Auth] Allow button not found, authorization might have completed automatically");
     }
 
     // 等待授权完成
@@ -1423,7 +1358,7 @@ async fn perform_browser_authorization(
     // 清理浏览器数据
     let _ = automation.clear_browser_data();
 
-    println!("[Browser Auth] Browser authorization completed");
+    println!("[Browser Auth] Browser authorization completed successfully");
     Ok(())
 }
 
