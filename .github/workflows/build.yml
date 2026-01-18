@@ -63,39 +63,8 @@ jobs:
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: .
-          tagName: v__VERSION__
-          releaseName: 'Kiro Account Manager Pro v__VERSION__'
-          releaseBody: |
-            ## 更新内容
-            
-            完整的 Kiro IDE 账号管理系统
-            
-            ### 主要功能
-            - 账号管理（列表、卡片视图、标签、筛选、排序）
-            - 一键切换账号
-            - Token 自动刷新
-            - Desktop OAuth 登录
-            - Web OAuth 登录
-            - Kiro 配置管理（MCP、Powers、Steering）
-            - 系统设置（主题、代理、浏览器等）
-            - 机器码管理
-            - 自动更新检查
-            
-            ### 下载说明
-            - Windows: `.msi` 或 `.exe` 安装包
-            - macOS: `.dmg` 安装包（支持 Intel 和 Apple Silicon）
-            - Linux: `.AppImage` 或 `.deb` 安装包
-            
-            ### 注意事项
-            - Windows 用户可能需要安装 WebView2 运行时
-            - macOS 用户首次运行需要在"系统偏好设置 > 安全性与隐私"中允许
-            - Linux 用户需要安装 webkit2gtk
-          releaseDraft: true
-          prerelease: false
           args: --target ${{ matrix.platform.rust_target }}
 
       - name: Upload artifacts
