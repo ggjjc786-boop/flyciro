@@ -67,12 +67,5 @@
     },
     "shortDescription": "Kiro 账号管理工具",
     "longDescription": "管理 Kiro IDE 账号，支持多账号切换和配额监控"
-  },
-  "plugins": {
-    "updater": {
-      "endpoints": [
-        "https://github.com/hj01857655/kiro-account-manager/releases/latest/download/latest.json"
-      ]
-    }
   }
 }
