@@ -6,6 +6,9 @@ use reqwest::Client;
 use serde::Deserialize;
 use std::time::Duration;
 
+// Re-export DevicePollResult for use in other modules
+pub use crate::models::DevicePollResult;
+
 /// AWS SSO OIDC 客户端
 pub struct AWSSSOClient {
     region: String,

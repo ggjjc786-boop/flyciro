@@ -155,7 +155,7 @@ impl AuthProvider for IdcProvider {
         let sso_client = AWSSSOClient::new(region);
         let token_response = sso_client.refresh_token(&client_id, &client_secret, refresh_token).await?;
 
-        let expires_at = chrono::Local::now() + chrono::Duration::seconds(token_response.expires_in);
+        let expires_at = chrono::Local::now() + chrono::Duration::seconds(token_response.expires_in.unwrap_or(3600));
         let client_id_hash = metadata.client_id_hash.unwrap_or_else(|| Self::compute_client_id_hash(self.get_start_url()));
 
         Ok(AuthResult {
@@ -165,13 +165,13 @@ impl AuthProvider for IdcProvider {
             provider: self.provider_id.clone(),
             auth_method: "IdC".to_string(),
             id_token: token_response.id_token,
-            token_type: token_response.token_type,
-            expires_in: token_response.expires_in,
+            token_type: Some(token_response.token_type),
+            expires_in: token_response.expires_in.unwrap_or(3600),
             region: Some(region.to_string()),
             client_id: Some(client_id),
             client_secret: Some(client_secret),
             client_id_hash: Some(client_id_hash),
-            sso_session_id: token_response.aws_sso_app_session_id,
+            sso_session_id: None, // TokenResponse doesn't have this field
             profile_arn: None,
             csrf_token: None,
             session_token: None,
