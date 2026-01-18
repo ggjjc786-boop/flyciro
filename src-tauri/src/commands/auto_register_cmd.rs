@@ -1307,14 +1307,14 @@ async fn perform_browser_authorization(
     // 转义邮箱地址以防止 JavaScript 语法错误
     let escaped_email = email.replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'");
     
-    // 使用通用的 email input 选择器
+    // AWS Builder ID 登录页面的邮箱输入框是 type="text"，不是 type="email"
     let input_email_script = format!(
         r#"
         (function() {{
-            var emailInput = document.querySelector('input[type="email"]') || 
-                           document.querySelector('input[name="email"]') ||
-                           document.querySelector('input[placeholder*="email"]') ||
-                           document.querySelector('input[placeholder*="Email"]');
+            var emailInput = document.querySelector('input[placeholder*="example.com"]') ||
+                           document.querySelector('input[placeholder*="username"]') ||
+                           document.querySelector('input[type="email"]') || 
+                           document.querySelector('input[name="email"]');
             if (emailInput) {{
                 emailInput.focus();
                 
