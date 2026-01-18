@@ -56,6 +56,11 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
+            // 显示主窗口
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+            }
+            
             // 监听 deep link 事件 (使用 kiro:// 协议)
             #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
             {
