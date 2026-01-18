@@ -3,6 +3,7 @@ use crate::auto_register::models::*;
 use crate::auto_register::graph_api::GraphApiClient;
 use crate::auto_register::browser_automation::BrowserAutomation;
 use crate::auto_register::aws_sso_client::AWSSSOClient;
+use crate::providers::AuthProvider;
 use tauri::State;
 use anyhow::{Result, Context, anyhow};
 
@@ -213,7 +214,7 @@ pub async fn auto_register_start_registration(
         &account.client_id,
         &account.refresh_token,
         random_name,
-        settings.browser_mode,
+        settings.browser_mode.clone(),
     ).await;
 
     match result {
@@ -718,7 +719,7 @@ pub async fn auto_register_get_kiro_credentials(
         account.kiro_password.as_deref().unwrap_or(""),
         &account.client_id,
         &account.refresh_token,
-        settings.browser_mode,
+        settings.browser_mode.clone(),
     ).await;
 
     match result {
