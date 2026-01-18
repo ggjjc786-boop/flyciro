@@ -116,14 +116,14 @@ impl AuthProvider for IdcProvider {
         };
 
         // Step 6: 构建 AuthResult
-        let expires_at = chrono::Local::now() + chrono::Duration::seconds(token_response.expires_in);
+        let expires_at = chrono::Local::now() + chrono::Duration::seconds(token_response.expires_in.unwrap_or(3600));
         let client_id_hash = Self::compute_client_id_hash(start_url);
 
         println!("[IdC] {} login successful! {}", provider, serde_json::to_string_pretty(&serde_json::json!({
             "expiresIn": token_response.expires_in,
             "expiresAt": expires_at.format("%Y/%m/%d %H:%M:%S").to_string(),
             "hasIdToken": token_response.id_token.is_some(),
-            "hasSsoSessionId": token_response.aws_sso_app_session_id.is_some(),
+            "hasSsoSessionId": false, // TokenResponse doesn't have this field
         })).unwrap_or_default());
 
         Ok(AuthResult {
@@ -133,13 +133,13 @@ impl AuthProvider for IdcProvider {
             provider: provider.clone(),
             auth_method: "IdC".to_string(),
             id_token: token_response.id_token,
-            token_type: token_response.token_type,
-            expires_in: token_response.expires_in,
+            token_type: Some(token_response.token_type),
+            expires_in: token_response.expires_in.unwrap_or(3600),
             region: Some(region.clone()),
             client_id: Some(client_reg.client_id),
             client_secret: Some(client_reg.client_secret),
             client_id_hash: Some(client_id_hash),
-            sso_session_id: token_response.aws_sso_app_session_id,
+            sso_session_id: None, // TokenResponse doesn't have this field
             profile_arn: None,
             csrf_token: None,
             session_token: None,
