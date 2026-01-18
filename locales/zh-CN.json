@@ -499,5 +499,18 @@
   "switch.type": "类型",
   "detail.aoaPrefix": "aoa 开头",
   "detail.aorPrefix": "aor 开头",
-  "detail.eyjPrefix": "eyJ 开头"
+  "detail.eyjPrefix": "eyJ 开头",
+
+  "autoRegister.title": "自动注册账号",
+  "autoRegister.description": "自动注册新的 Kiro 账号并提取 Token，注册完成后会自动导入到账号列表",
+  "autoRegister.start": "开始自动注册",
+  "autoRegister.registering": "注册中...",
+  "autoRegister.starting": "正在启动浏览器...",
+  "autoRegister.success": "注册成功！",
+  "autoRegister.failed": "注册失败",
+  "autoRegister.error": "错误",
+  "autoRegister.imported": "账号已导入到列表",
+  "autoRegister.accountInfo": "账号信息",
+  "autoRegister.email": "邮箱",
+  "autoRegister.token": "Token"
 }

@@ -11,6 +11,7 @@ import Login from './components/Login'
 import WebOAuthLogin from './components/WebOAuthLogin'
 import AuthCallback from './components/AuthCallback'
 import UpdateChecker from './components/UpdateChecker'
+import { AutoRegister } from './components/AutoRegister'
 import { useTheme } from './contexts/ThemeContext'
 
 // 默认自动刷新间隔：50分钟
@@ -191,6 +192,7 @@ function App() {
     switch (activeMenu) {
       case 'home': return <Home onNavigate={setActiveMenu} />
       case 'token': return <AccountManager />
+      case 'auto-register': return <AutoRegister />
       case 'kiro-config': return <KiroConfig />
       case 'login': return <Login onLogin={(user: any) => { handleLogin(user); setActiveMenu('token'); }} />
       case 'web-oauth': return <WebOAuthLogin onLogin={(user: any) => { handleLogin(user); setActiveMenu('token'); }} />

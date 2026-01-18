@@ -33,6 +33,7 @@ use commands::account_cmd::{
 };
 use commands::app_settings_cmd::*;
 use commands::auth_cmd::*;
+use commands::auto_register_cmd::{auto_register_kiro_account, import_registered_account};
 use commands::kiro_settings_cmd::*;
 use commands::machine_guid_cmd::*;
 use commands::mcp_cmd::*;
@@ -109,6 +110,9 @@ fn main() {
             get_supported_providers,
             handle_kiro_social_callback,
             add_kiro_account,
+            // 自动注册命令
+            auto_register_kiro_account,
+            import_registered_account,
             // Kiro IDE 命令
             get_kiro_local_token,
             switch_kiro_account,
