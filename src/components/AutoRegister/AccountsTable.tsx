@@ -72,7 +72,9 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
   };
 
   const handleDelete = async (id: number) => {
+    console.log('=== DELETE BUTTON CLICKED ===');
     console.log('[Delete] Starting delete for account ID:', id);
+    alert('删除按钮被点击了！ID: ' + id); // 临时测试
     try {
       const confirmed = await showConfirm('确定要删除这条记录吗?', '确认删除');
       console.log('[Delete] User confirmation:', confirmed);
@@ -253,7 +255,11 @@ export function AccountsTable({ accounts, onRefresh }: AccountsTableProps) {
                     )}
                     <button
                       className="w-8 h-8 flex items-center justify-center border border-red-500 text-red-500 rounded-lg transition-all hover:bg-red-500/10 disabled:opacity-50"
-                      onClick={() => handleDelete(account.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        console.log('DELETE BUTTON CLICKED - Event:', e);
+                        handleDelete(account.id);
+                      }}
                       title="删除"
                       disabled={account.status === 'in_progress'}
                     >
