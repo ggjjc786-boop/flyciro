@@ -280,11 +280,11 @@ pub async fn auto_register_start_registration(
                     } // conn 在这里被释放
 
                     println!("[Auto Register] Kiro credentials obtained successfully!");
-                    Ok(format!("注册完成！密�? {}\n已自动获�?AWS Builder ID 凭证", kiro_password))
+                    Ok(format!("注册完成！密�? {}\n已自动获�?AWS Builder ID 凭证", kiro_password))
                 }
                 Err(e) => {
                     println!("[Auto Register] Failed to get Kiro credentials: {}", e);
-                    Ok(format!("注册完成！密�? {}\n但获取凭证失�? {}", kiro_password, e))
+                    Ok(format!("注册完成！密�? {}\n但获取凭证失�? {}", kiro_password, e))
                 }
             }
         }
@@ -664,7 +664,7 @@ pub async fn auto_register_export_accounts(
     Ok(lines.join("\n"))
 }
 
-/// 获取账号最新邮�?
+/// 获取账号最新邮�?
 #[tauri::command]
 pub async fn auto_register_fetch_latest_email(
     db: State<'_, DbState>,
@@ -676,7 +676,7 @@ pub async fn auto_register_fetch_latest_email(
         database::get_account_by_id(&conn, account_id).map_err(|e| e.to_string())?
     };
     
-    // 使用 Graph API 获取最新邮�?
+    // 使用 Graph API 获取最新邮�?
     let graph_client = GraphApiClient::new();
     
     // 获取 access token
@@ -685,7 +685,7 @@ pub async fn auto_register_fetch_latest_email(
         .await
         .map_err(|e| format!("获取访问令牌失败: {}", e))?;
     
-    // 获取最新的 10 封邮�?
+    // 获取最新的 10 封邮�?
     let emails = graph_client
         .fetch_recent_emails(&access_token, &account.email, 10)
         .await
@@ -708,10 +708,10 @@ pub async fn auto_register_get_kiro_credentials(
 
     // 检查账号是否已注册
     if account.status != AccountStatus::Registered {
-        return Err("账号尚未完成注册，请先完成注�?.to_string());
+        return Err("账号尚未完成注册，请先完成注�?.to_string());
     }
 
-    // 获取浏览器设�?
+    // 获取浏览器设�?
     let settings = {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         database::get_settings(&conn).map_err(|e| e.to_string())?
@@ -763,13 +763,13 @@ pub async fn auto_register_get_kiro_credentials(
 pub async fn auto_register_batch_fetch_kiro_credentials(
     db: State<'_, DbState>,
 ) -> Result<String, String> {
-    // 获取所有已注册的账�?
+    // 获取所有已注册的账�?
     let accounts = {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         database::get_accounts_by_status(&conn, "registered").map_err(|e| e.to_string())?
     };
 
-    // 过滤出没�?Kiro 凭证的账�?
+    // 过滤出没�?Kiro 凭证的账�?
     let accounts_without_credentials: Vec<_> = accounts
         .into_iter()
         .filter(|a| a.kiro_client_id.is_none())
@@ -783,7 +783,7 @@ pub async fn auto_register_batch_fetch_kiro_credentials(
     let mut success_count = 0;
     let mut error_count = 0;
 
-    // 获取浏览器设�?
+    // 获取浏览器设�?
     let settings = {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         database::get_settings(&conn).map_err(|e| e.to_string())?
@@ -839,7 +839,7 @@ pub async fn auto_register_batch_fetch_kiro_credentials(
     ))
 }
 
-/// 导入已注册账号到主账号列�?
+/// 导入已注册账号到主账号列�?
 #[tauri::command]
 pub async fn auto_register_import_to_main(
     db: State<'_, DbState>,
@@ -850,7 +850,7 @@ pub async fn auto_register_import_to_main(
     use crate::kiro::get_machine_id;
     use crate::codewhisperer_client::CodeWhispererClient;
     
-    // 获取所有已注册且有凭证的账�?
+    // 获取所有已注册且有凭证的账�?
     let accounts = {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         let all_accounts = database::get_accounts_by_status(&conn, "registered").map_err(|e| e.to_string())?;
@@ -860,7 +860,7 @@ pub async fn auto_register_import_to_main(
     };
 
     if accounts.is_empty() {
-        return Ok("没有可导入的账号（需要先获取凭证�?.to_string());
+        return Ok("没有可导入的账号（需要先获取凭证�?.to_string());
     }
 
     let mut success_count = 0;
@@ -925,9 +925,9 @@ pub async fn auto_register_import_to_main(
                     existing.id_token = auth_result.id_token;
                     existing.sso_session_id = auth_result.sso_session_id;
                     existing.usage_data = Some(usage_data);
-                    existing.status = if is_banned { "已封�?.to_string() } else { "正常".to_string() };
+                    existing.status = if is_banned { "已封�?.to_string() } else { "正常".to_string() };
                 } else {
-                    // 添加新账�?
+                    // 添加新账�?
                     let mut main_account = crate::account::Account::new(
                         account.email.clone(),
                         format!("Kiro BuilderId 账号 (自动注册)"),
@@ -944,7 +944,7 @@ pub async fn auto_register_import_to_main(
                     main_account.id_token = auth_result.id_token;
                     main_account.sso_session_id = auth_result.sso_session_id;
                     main_account.usage_data = Some(usage_data);
-                    main_account.status = if is_banned { "已封�?.to_string() } else { "正常".to_string() };
+                    main_account.status = if is_banned { "已封�?.to_string() } else { "正常".to_string() };
                     store.accounts.insert(0, main_account);
                 }
                 
@@ -961,12 +961,12 @@ pub async fn auto_register_import_to_main(
     }
 
     Ok(format!(
-        "导入完成！成�? {}, 失败: {}",
+        "导入完成！成�? {}, 失败: {}",
         success_count, error_count
     ))
 }
 
-/// 执行 Kiro 登录流程并获取凭�?
+/// 执行 Kiro 登录流程并获取凭�?
 async fn perform_kiro_login(
     email: &str,
     kiro_password: &str,
@@ -977,10 +977,10 @@ async fn perform_kiro_login(
     let start_url = "https://view.awsapps.com/start";
     let sso_client = AWSSSOClient::new("us-east-1");
 
-    // Step 1: 注册设备客户�?
+    // Step 1: 注册设备客户�?
     println!("[Kiro Login] Step 1: Registering device client...");
     let client_reg = sso_client.register_device_client(start_url).await
-        .map_err(|e| anyhow!("注册设备客户端失�? {}", e))?;
+        .map_err(|e| anyhow!("注册设备客户端失�? {}", e))?;
 
     // Step 2: 发起设备授权
     println!("[Kiro Login] Step 2: Starting device authorization...");
@@ -991,12 +991,12 @@ async fn perform_kiro_login(
     ).await
         .map_err(|e| anyhow!("发起设备授权失败: {}", e))?;
 
-    // Step 3: 使用浏览器自动登录（类似注册流程�?
+    // Step 3: 使用浏览器自动登录（类似注册流程�?
     println!("[Kiro Login] Step 3: Launching browser for login...");
     let verification_url = device_auth.verification_uri_complete.as_ref()
         .unwrap_or(&device_auth.verification_uri);
     
-    // 启动浏览器完成登录流�?
+    // 启动浏览器完成登录流�?
     let browser_result = perform_simple_browser_login(
         verification_url,
         email,
@@ -1008,7 +1008,7 @@ async fn perform_kiro_login(
 
     if let Err(e) = browser_result {
         println!("[Kiro Login] Browser login failed: {}", e);
-        return Err(anyhow!("浏览器登录失�? {}", e));
+        return Err(anyhow!("浏览器登录失�? {}", e));
     }
 
     // Step 4: 轮询获取 Token
@@ -1044,10 +1044,10 @@ async fn perform_kiro_login(
                 continue;
             }
             Ok(DevicePollResult::Expired) => {
-                return Err(anyhow!("设备授权已过�?));
+                return Err(anyhow!("设备授权已过�?));
             }
             Ok(DevicePollResult::Denied) => {
-                return Err(anyhow!("授权被拒�?));
+                return Err(anyhow!("授权被拒�?));
             }
             Err(e) => {
                 return Err(anyhow!("轮询 Token 失败: {}", e));
@@ -1058,7 +1058,7 @@ async fn perform_kiro_login(
     Err(anyhow!("获取 Token 超时"))
 }
 
-/// 简化的浏览器登录流程（类似注册流程�?
+/// 简化的浏览器登录流程（类似注册流程�?
 async fn perform_simple_browser_login(
     verification_url: &str,
     email: &str,
@@ -1086,14 +1086,14 @@ async fn perform_simple_browser_login(
 
     automation.apply_fingerprint_protection(&tab)?;
 
-    // 导航到验�?URL
+    // 导航到验�?URL
     println!("[Browser Login] Navigating to: {}", verification_url);
     tab.navigate_to(verification_url)
         .context("Failed to navigate to verification URL")?;
     tab.wait_until_navigated()?;
     std::thread::sleep(std::time::Duration::from_secs(3));
 
-    // Step 1: 点击确认按钮（如果有�?
+    // Step 1: 点击确认按钮（如果有�?
     println!("[Browser Login] Looking for confirm button...");
     let confirm_button_xpath = "//*[@id='cli_verification_btn']";
     if automation.wait_for_element(&tab, confirm_button_xpath, 5).await.unwrap_or(false) {
@@ -1102,7 +1102,7 @@ async fn perform_simple_browser_login(
         std::thread::sleep(std::time::Duration::from_secs(3));
     }
 
-    // Step 2: 等待登录页面并输入邮�?
+    // Step 2: 等待登录页面并输入邮�?
     println!("[Browser Login] Waiting for email input...");
     let email_input_xpath = "/html/body/div/div/main/div/div/form/div[1]/div/awsui-input/div/div[1]/div[1]/div/input";
     
@@ -1111,7 +1111,7 @@ async fn perform_simple_browser_login(
         automation.input_text(&tab, email_input_xpath, email)?;
         std::thread::sleep(std::time::Duration::from_millis(1500));
 
-        // 点击下一�?
+        // 点击下一�?
         let next_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/div/div/awsui-button/button";
         if automation.wait_for_element(&tab, next_button_xpath, 3).await.unwrap_or(false) {
             println!("[Browser Login] Clicking next button...");
@@ -1185,7 +1185,7 @@ async fn perform_simple_browser_login(
     println!("[Browser Login] Waiting for authorization to complete...");
     std::thread::sleep(std::time::Duration::from_secs(5));
 
-    // 清理浏览器数�?
+    // 清理浏览器数�?
     let _ = automation.clear_browser_data();
 
     println!("[Browser Login] Browser login completed");
