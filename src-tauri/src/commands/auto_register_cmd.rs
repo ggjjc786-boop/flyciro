@@ -220,26 +220,28 @@ pub async fn auto_register_start_registration(
     match result {
         Ok(kiro_password) => {
             // Update account with success
-            let conn = db.0.lock().map_err(|e| e.to_string())?;
-            database::update_account(
-                &conn,
-                AccountUpdate {
-                    id: account_id,
-                    email: None,
-                    email_password: None,
-                    client_id: None,
-                    refresh_token: None,
-                    kiro_password: Some(kiro_password.clone()),
-                    status: Some(AccountStatus::Registered),
-                    error_reason: None,
-                    kiro_client_id: None,
-                    kiro_client_secret: None,
-                    kiro_refresh_token: None,
-                    kiro_access_token: None,
-                    kiro_id_token: None,
-                },
-            )
-            .map_err(|e| e.to_string())?;
+            {
+                let conn = db.0.lock().map_err(|e| e.to_string())?;
+                database::update_account(
+                    &conn,
+                    AccountUpdate {
+                        id: account_id,
+                        email: None,
+                        email_password: None,
+                        client_id: None,
+                        refresh_token: None,
+                        kiro_password: Some(kiro_password.clone()),
+                        status: Some(AccountStatus::Registered),
+                        error_reason: None,
+                        kiro_client_id: None,
+                        kiro_client_secret: None,
+                        kiro_refresh_token: None,
+                        kiro_access_token: None,
+                        kiro_id_token: None,
+                    },
+                )
+                .map_err(|e| e.to_string())?;
+            } // conn 在这里被释放
 
             // 自动获取 Kiro 凭证
             println!("[Auto Register] Registration successful, now fetching Kiro credentials...");
@@ -254,26 +256,28 @@ pub async fn auto_register_start_registration(
             match credentials_result {
                 Ok(credentials) => {
                     // 更新账号凭证信息
-                    let conn = db.0.lock().map_err(|e| e.to_string())?;
-                    database::update_account(
-                        &conn,
-                        AccountUpdate {
-                            id: account_id,
-                            email: None,
-                            email_password: None,
-                            client_id: None,
-                            refresh_token: None,
-                            kiro_password: None,
-                            status: None,
-                            error_reason: None,
-                            kiro_client_id: Some(credentials.client_id.clone()),
-                            kiro_client_secret: Some(credentials.client_secret.clone()),
-                            kiro_refresh_token: Some(credentials.refresh_token.clone()),
-                            kiro_access_token: Some(credentials.access_token.clone()),
-                            kiro_id_token: credentials.id_token.clone(),
-                        },
-                    )
-                    .map_err(|e| e.to_string())?;
+                    {
+                        let conn = db.0.lock().map_err(|e| e.to_string())?;
+                        database::update_account(
+                            &conn,
+                            AccountUpdate {
+                                id: account_id,
+                                email: None,
+                                email_password: None,
+                                client_id: None,
+                                refresh_token: None,
+                                kiro_password: None,
+                                status: None,
+                                error_reason: None,
+                                kiro_client_id: Some(credentials.client_id.clone()),
+                                kiro_client_secret: Some(credentials.client_secret.clone()),
+                                kiro_refresh_token: Some(credentials.refresh_token.clone()),
+                                kiro_access_token: Some(credentials.access_token.clone()),
+                                kiro_id_token: credentials.id_token.clone(),
+                            },
+                        )
+                        .map_err(|e| e.to_string())?;
+                    } // conn 在这里被释放
 
                     println!("[Auto Register] Kiro credentials obtained successfully!");
                     Ok(format!("注册完成！密码: {}\n已自动获取 AWS Builder ID 凭证", kiro_password))
