@@ -1304,6 +1304,9 @@ async fn perform_browser_authorization(
     // Step 2: 在 AWS Builder ID 登录页面输入邮箱
     println!("[Browser Auth] Waiting for email input on AWS Builder ID login page...");
     
+    // 转义邮箱地址以防止 JavaScript 语法错误
+    let escaped_email = email.replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'");
+    
     // 使用通用的 email input 选择器
     let input_email_script = format!(
         r#"
@@ -1314,7 +1317,6 @@ async fn perform_browser_authorization(
                            document.querySelector('input[placeholder*="Email"]');
             if (emailInput) {{
                 emailInput.focus();
-                emailInput.value = "{}";
                 
                 // 使用 React 的方式触发事件
                 var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
@@ -1328,7 +1330,7 @@ async fn perform_browser_authorization(
             return 'failed';
         }})()
         "#,
-        email, email
+        escaped_email
     );
     
     match tab.evaluate(&input_email_script, true) {
@@ -1387,6 +1389,9 @@ async fn perform_browser_authorization(
     println!("[Browser Auth] Waiting for password input...");
     std::thread::sleep(std::time::Duration::from_secs(2));
     
+    // 转义密码以防止 JavaScript 语法错误
+    let escaped_password = kiro_password.replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'");
+    
     let input_password_script = format!(
         r#"
         (function() {{
@@ -1394,7 +1399,6 @@ async fn perform_browser_authorization(
                               document.querySelector('input[name="password"]');
             if (passwordInput) {{
                 passwordInput.focus();
-                passwordInput.value = "{}";
                 
                 // 使用 React 的方式触发事件
                 var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
@@ -1408,7 +1412,7 @@ async fn perform_browser_authorization(
             return 'failed';
         }})()
         "#,
-        kiro_password, kiro_password
+        escaped_password
     );
     
     match tab.evaluate(&input_password_script, true) {
