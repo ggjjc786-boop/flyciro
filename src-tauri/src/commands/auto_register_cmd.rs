@@ -585,17 +585,44 @@ async fn perform_registration(
 
 fn generate_secure_password() -> String {
     use rand::Rng;
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+    use rand::seq::SliceRandom;
+    
     let mut rng = rand::thread_rng();
-
-    let password: String = (0..16)
-        .map(|_| {
-            let idx = rng.gen_range(0..CHARSET.len());
-            CHARSET[idx] as char
-        })
-        .collect();
-
-    password
+    
+    // 定义字符集
+    const UPPERCASE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const LOWERCASE: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
+    const DIGITS: &[u8] = b"0123456789";
+    const SPECIAL: &[u8] = b"!";
+    const EXTRA_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    
+    let mut password_chars = Vec::new();
+    
+    // 确保至少有一个大写字母
+    let uppercase_idx = rng.gen_range(0..UPPERCASE.len());
+    password_chars.push(UPPERCASE[uppercase_idx] as char);
+    
+    // 确保至少有一个小写字母
+    let lowercase_idx = rng.gen_range(0..LOWERCASE.len());
+    password_chars.push(LOWERCASE[lowercase_idx] as char);
+    
+    // 确保至少有一个数字
+    let digit_idx = rng.gen_range(0..DIGITS.len());
+    password_chars.push(DIGITS[digit_idx] as char);
+    
+    // 确保有一个感叹号
+    password_chars.push('!');
+    
+    // 填充剩余字符（总长度16，已有4个必需字符，还需12个）
+    for _ in 0..12 {
+        let idx = rng.gen_range(0..EXTRA_CHARS.len());
+        password_chars.push(EXTRA_CHARS[idx] as char);
+    }
+    
+    // 随机打乱字符顺序
+    password_chars.shuffle(&mut rng);
+    
+    password_chars.into_iter().collect()
 }
 
 #[tauri::command]
