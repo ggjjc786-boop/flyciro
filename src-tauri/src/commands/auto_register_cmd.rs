@@ -1342,12 +1342,14 @@ async fn perform_browser_authorization(
     // Step 2: 在 AWS Builder ID 登录页面输入邮箱
     println!("[Browser Auth] Waiting for email input on AWS Builder ID login page...");
     log_content.push_str("[Browser Auth] Waiting for email input on AWS Builder ID login page...\n");
+    log_content.push_str(&format!("[Browser Auth] Email to input: {}\n", email));
     
     // 先等待一下确保页面元素加载完成
     std::thread::sleep(std::time::Duration::from_secs(2));
     
     // 转义邮箱地址以防止 JavaScript 语法错误
     let escaped_email = email.replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'");
+    log_content.push_str(&format!("[Browser Auth] Escaped email: {}\n", escaped_email));
     
     // AWS Builder ID 登录页面的邮箱输入框是 type="text"，不是 type="email"
     let input_email_script = format!(
@@ -1360,6 +1362,8 @@ async fn perform_browser_authorization(
                            document.querySelector('input[name="email"]');
             console.log('[Browser Auth JS] Email input found:', emailInput);
             if (emailInput) {{
+                console.log('[Browser Auth JS] Input element type:', emailInput.type);
+                console.log('[Browser Auth JS] Input element id:', emailInput.id);
                 emailInput.focus();
                 
                 // 使用 React 的方式触发事件
@@ -1369,24 +1373,34 @@ async fn perform_browser_authorization(
                 emailInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
                 emailInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
                 emailInput.dispatchEvent(new Event('blur', {{ bubbles: true }}));
-                console.log('[Browser Auth JS] Email input value:', emailInput.value);
-                return 'success';
+                
+                console.log('[Browser Auth JS] Email input value after setting:', emailInput.value);
+                
+                // 等待一下再检查
+                setTimeout(function() {{
+                    console.log('[Browser Auth JS] Email input value after 500ms:', emailInput.value);
+                }}, 500);
+                
+                return 'success:' + emailInput.value;
             }}
-            return 'failed';
+            return 'failed:input_not_found';
         }})()
         "#,
         escaped_email
     );
     
+    log_content.push_str(&format!("[Browser Auth] JavaScript to execute (first 200 chars): {}\n", 
+        &input_email_script.chars().take(200).collect::<String>()));
+    
     match tab.evaluate(&input_email_script, true) {
         Ok(result) => {
             if let Some(value) = result.value {
-                println!("[Browser Auth] Email input result: {}", value);
-                log_content.push_str(&format!("[Browser Auth] Email input result: {}\n", value));
-                if value.as_str().unwrap_or("") != "success" {
+                let result_str = value.as_str().unwrap_or("unknown");
+                println!("[Browser Auth] Email input result: {}", result_str);
+                log_content.push_str(&format!("[Browser Auth] Email input result: {}\n", result_str));
+                if !result_str.starts_with("success:") {
                     println!("[Browser Auth] WARNING: Failed to input email, but continuing...");
                     log_content.push_str("[Browser Auth] WARNING: Failed to input email, but continuing...\n");
-                    // 不要立即返回错误，继续尝试
                 }
             }
         }
@@ -1405,6 +1419,7 @@ async fn perform_browser_authorization(
     
     // 点击继续按钮
     println!("[Browser Auth] Clicking continue/next button...");
+    log_content.push_str("[Browser Auth] Clicking continue/next button...\n");
     let click_continue_script = r#"
         (function() {
             var buttons = document.querySelectorAll('button');
@@ -1429,12 +1444,17 @@ async fn perform_browser_authorization(
         Ok(result) => {
             if let Some(value) = result.value {
                 println!("[Browser Auth] Continue button click result: {}", value);
+                log_content.push_str(&format!("[Browser Auth] Continue button click result: {}\n", value));
             }
         }
         Err(e) => {
             println!("[Browser Auth] Failed to click continue: {}", e);
+            log_content.push_str(&format!("[Browser Auth] Failed to click continue: {}\n", e));
         }
     }
+    
+    // 保存中间日志
+    let _ = std::fs::write(&log_file_path, &log_content);
     
     std::thread::sleep(std::time::Duration::from_secs(4));
 
