@@ -4,7 +4,8 @@ use crate::auto_register::graph_api::GraphApiClient;
 use crate::auto_register::browser_automation::BrowserAutomation;
 use crate::auto_register::aws_sso_client::AWSSSOClient;
 use crate::providers::AuthProvider;
-use tauri::State;
+use crate::auth::User;
+use tauri::{State, Emitter};
 use anyhow::{Result, Context, anyhow};
 
 #[tauri::command]
@@ -386,7 +387,7 @@ pub async fn auto_register_start_registration(
                             drop(store); // 释放 store 锁
                             
                             // 更新 auth 状态，标记用户已登录
-                            let user = crate::commands::auth_cmd::User {
+                            let user = User {
                                 id: uuid::Uuid::new_v4().to_string(),
                                 email: account.email.clone(),
                                 name: account.email.split('@').next().unwrap_or("User").to_string(),
@@ -1289,7 +1290,7 @@ pub async fn auto_register_get_credentials_and_import(
                     drop(store); // 释放 store 锁
                     
                     // 更新 auth 状态，标记用户已登录
-                    let user = crate::commands::auth_cmd::User {
+                    let user = User {
                         id: uuid::Uuid::new_v4().to_string(),
                         email: account.email.clone(),
                         name: account.email.split('@').next().unwrap_or("User").to_string(),
