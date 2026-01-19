@@ -1374,71 +1374,138 @@ async fn perform_kiro_login_with_browser(
     // Step 4: 第一个页面 - 自动点击 "Confirm and continue" 按钮
     println!("[Kiro Login] Step 4: Auto-clicking 'Confirm and continue' button on first page...");
     
-    // 尝试多个可能的按钮 XPath - 根据实际HTML结构
-    let confirm_continue_xpaths = vec![
-        // 中文按钮
-        "//button[text()='确认并继续']",
-        "//button[contains(text(), '确认并继续')]",
-        "//input[@type='submit' and @value='确认并继续']",
-        // 英文按钮
-        "//button[text()='Confirm and continue']",
-        "//button[contains(text(), 'Confirm and continue')]",
-        "//input[@type='submit' and @value='Confirm and continue']",
-        // 通用选择器 - 橙色按钮（不是取消按钮）
-        "//button[@type='submit' and not(contains(text(), '取消')) and not(contains(text(), 'Cancel'))]",
-        "//button[contains(@class, 'awsui-button-variant-primary')]",
-    ];
+    // 使用 JavaScript 智能查找按钮（排除 Cookie 弹窗按钮）
+    let find_button_script = r#"
+        (function() {
+            const buttons = document.querySelectorAll('button[type="submit"]');
+            const targetTexts = ['Confirm and continue', '确认并继续'];
+            const excludeTexts = ['Accept', 'Decline', 'Customize', 'Save preferences', 'Dismiss', 'Cancel', '取消'];
+            
+            for (let btn of buttons) {
+                const text = btn.textContent.trim();
+                if (targetTexts.some(target => text === target)) {
+                    return true;
+                }
+            }
+            return false;
+        })()
+    "#;
     
-    let mut confirm_continue_clicked = false;
-    for xpath in &confirm_continue_xpaths {
-        println!("[Kiro Login] Trying to find button with xpath: {}", xpath);
-        if _automation.wait_for_element(tab, xpath, 5).await? {
-            println!("[Kiro Login] Found 'Confirm and continue' button with xpath: {}", xpath);
-            _automation.click_element(tab, xpath)?;
-            println!("[Kiro Login] Successfully clicked 'Confirm and continue' button");
-            confirm_continue_clicked = true;
-            std::thread::sleep(std::time::Duration::from_secs(4));
-            break;
+    let click_button_script = r#"
+        (function() {
+            const buttons = document.querySelectorAll('button[type="submit"]');
+            const targetTexts = ['Confirm and continue', '确认并继续'];
+            const excludeTexts = ['Accept', 'Decline', 'Customize', 'Save preferences', 'Dismiss', 'Cancel', '取消'];
+            
+            for (let btn of buttons) {
+                const text = btn.textContent.trim();
+                if (targetTexts.some(target => text === target)) {
+                    btn.click();
+                    return true;
+                }
+            }
+            return false;
+        })()
+    "#;
+    
+    // 等待按钮出现
+    let start = std::time::Instant::now();
+    let timeout = std::time::Duration::from_secs(15);
+    let mut button_found = false;
+    
+    while start.elapsed() < timeout {
+        match tab.evaluate(find_button_script, true) {
+            Ok(result) => {
+                if let Some(value) = result.value {
+                    if value.as_bool().unwrap_or(false) {
+                        button_found = true;
+                        break;
+                    }
+                }
+            }
+            Err(_) => {}
         }
+        std::thread::sleep(std::time::Duration::from_millis(500));
     }
     
-    if !confirm_continue_clicked {
-        return Err(anyhow!("Could not find or click 'Confirm and continue' button"));
+    if !button_found {
+        return Err(anyhow!("Could not find 'Confirm and continue' button"));
     }
+    
+    // 点击按钮
+    println!("[Kiro Login] Found 'Confirm and continue' button, clicking...");
+    tab.evaluate(click_button_script, true)
+        .context("Failed to click 'Confirm and continue' button")?;
+    println!("[Kiro Login] Successfully clicked 'Confirm and continue' button");
+    std::thread::sleep(std::time::Duration::from_secs(4));
     
     // Step 5: 第二个页面 - 自动点击 "Allow access" 按钮
     println!("[Kiro Login] Step 5: Auto-clicking 'Allow access' button on second page...");
     
-    // 尝试多个可能的按钮 XPath
-    let allow_access_xpaths = vec![
-        // 英文按钮
-        "//button[text()='Allow access']",
-        "//button[contains(text(), 'Allow access')]",
-        "//input[@type='submit' and @value='Allow access']",
-        // 中文按钮（如果有）
-        "//button[text()='允许访问']",
-        "//button[contains(text(), '允许访问')]",
-        // 通用选择器 - 橙色按钮（不是拒绝按钮）
-        "//button[@type='submit' and not(contains(text(), 'Deny')) and not(contains(text(), '拒绝'))]",
-        "//button[contains(@class, 'awsui-button-variant-primary')]",
-    ];
+    // 使用 JavaScript 智能查找按钮
+    let find_allow_script = r#"
+        (function() {
+            const buttons = document.querySelectorAll('button[type="submit"]');
+            const targetTexts = ['Allow access', '允许访问'];
+            const excludeTexts = ['Deny access', '拒绝访问', 'Cancel', '取消'];
+            
+            for (let btn of buttons) {
+                const text = btn.textContent.trim();
+                if (targetTexts.some(target => text === target)) {
+                    return true;
+                }
+            }
+            return false;
+        })()
+    "#;
     
-    let mut allow_access_clicked = false;
-    for xpath in &allow_access_xpaths {
-        println!("[Kiro Login] Trying to find button with xpath: {}", xpath);
-        if _automation.wait_for_element(tab, xpath, 5).await? {
-            println!("[Kiro Login] Found 'Allow access' button with xpath: {}", xpath);
-            _automation.click_element(tab, xpath)?;
-            println!("[Kiro Login] Successfully clicked 'Allow access' button");
-            allow_access_clicked = true;
-            std::thread::sleep(std::time::Duration::from_secs(2));
-            break;
+    let click_allow_script = r#"
+        (function() {
+            const buttons = document.querySelectorAll('button[type="submit"]');
+            const targetTexts = ['Allow access', '允许访问'];
+            const excludeTexts = ['Deny access', '拒绝访问', 'Cancel', '取消'];
+            
+            for (let btn of buttons) {
+                const text = btn.textContent.trim();
+                if (targetTexts.some(target => text === target)) {
+                    btn.click();
+                    return true;
+                }
+            }
+            return false;
+        })()
+    "#;
+    
+    // 等待按钮出现
+    let start = std::time::Instant::now();
+    let timeout = std::time::Duration::from_secs(15);
+    let mut allow_button_found = false;
+    
+    while start.elapsed() < timeout {
+        match tab.evaluate(find_allow_script, true) {
+            Ok(result) => {
+                if let Some(value) = result.value {
+                    if value.as_bool().unwrap_or(false) {
+                        allow_button_found = true;
+                        break;
+                    }
+                }
+            }
+            Err(_) => {}
         }
+        std::thread::sleep(std::time::Duration::from_millis(500));
     }
     
-    if !allow_access_clicked {
-        return Err(anyhow!("Could not find or click 'Allow access' button"));
+    if !allow_button_found {
+        return Err(anyhow!("Could not find 'Allow access' button"));
     }
+    
+    // 点击按钮
+    println!("[Kiro Login] Found 'Allow access' button, clicking...");
+    tab.evaluate(click_allow_script, true)
+        .context("Failed to click 'Allow access' button")?;
+    println!("[Kiro Login] Successfully clicked 'Allow access' button");
+    std::thread::sleep(std::time::Duration::from_secs(2));
     
     println!("[Kiro Login] Authorization buttons clicked successfully, waiting for token...");
     
