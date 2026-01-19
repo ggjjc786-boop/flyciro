@@ -161,6 +161,7 @@ pub async fn auto_register_update_settings(
 
 #[tauri::command]
 pub async fn auto_register_start_registration(
+    app_handle: tauri::AppHandle,
     db: State<'_, DbState>,
     app_state: State<'_, crate::state::AppState>,
     account_id: i64,
@@ -374,6 +375,34 @@ pub async fn auto_register_start_registration(
                             
                             // 保存
                             store.save_to_file();
+                            
+                            // 获取导入的账号 ID
+                            let account_id_for_event = if let Some(acc) = store.accounts.iter().find(|a| a.email == account.email && a.provider.as_deref() == Some("BuilderId")) {
+                                acc.id.clone()
+                            } else {
+                                String::new()
+                            };
+                            
+                            drop(store); // 释放 store 锁
+                            
+                            // 更新 auth 状态，标记用户已登录
+                            let user = crate::commands::auth_cmd::User {
+                                id: uuid::Uuid::new_v4().to_string(),
+                                email: account.email.clone(),
+                                name: account.email.split('@').next().unwrap_or("User").to_string(),
+                                avatar: None,
+                                provider: "BuilderId".to_string(),
+                            };
+                            *app_state.auth.user.lock().unwrap() = Some(user);
+                            *app_state.auth.access_token.lock().unwrap() = Some(auth_result.access_token.clone());
+                            *app_state.auth.refresh_token.lock().unwrap() = Some(auth_result.refresh_token.clone());
+                            
+                            // 发送登录成功事件，通知前端刷新
+                            if !account_id_for_event.is_empty() {
+                                let _ = app_handle.emit("login-success", account_id_for_event);
+                                println!("[Auto Register] Emitted login-success event");
+                            }
+                            
                             println!("[Auto Register] Successfully imported to main account list!");
                             
                             Ok(format!("注册完成！密码: {}\n已自动获取 AWS Builder ID 凭证并导入到账号列表", kiro_password))
@@ -1105,6 +1134,7 @@ pub async fn auto_register_import_to_main(
 /// 获取单个账号的凭证并导入到主账号池
 #[tauri::command]
 pub async fn auto_register_get_credentials_and_import(
+    app_handle: tauri::AppHandle,
     db: State<'_, DbState>,
     app_state: State<'_, crate::state::AppState>,
     account_id: i64,
@@ -1248,6 +1278,34 @@ pub async fn auto_register_get_credentials_and_import(
                     
                     // 保存
                     store.save_to_file();
+                    
+                    // 获取导入的账号 ID
+                    let account_id_for_event = if let Some(acc) = store.accounts.iter().find(|a| a.email == account.email && a.provider.as_deref() == Some("BuilderId")) {
+                        acc.id.clone()
+                    } else {
+                        String::new()
+                    };
+                    
+                    drop(store); // 释放 store 锁
+                    
+                    // 更新 auth 状态，标记用户已登录
+                    let user = crate::commands::auth_cmd::User {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        email: account.email.clone(),
+                        name: account.email.split('@').next().unwrap_or("User").to_string(),
+                        avatar: None,
+                        provider: "BuilderId".to_string(),
+                    };
+                    *app_state.auth.user.lock().unwrap() = Some(user);
+                    *app_state.auth.access_token.lock().unwrap() = Some(auth_result.access_token.clone());
+                    *app_state.auth.refresh_token.lock().unwrap() = Some(auth_result.refresh_token.clone());
+                    
+                    // 发送登录成功事件，通知前端刷新
+                    if !account_id_for_event.is_empty() {
+                        let _ = app_handle.emit("login-success", account_id_for_event);
+                        println!("[Get Credentials] Emitted login-success event");
+                    }
+                    
                     println!("[Get Credentials] Successfully imported account: {}", account.email);
                     
                     Ok(format!("成功获取凭证并导入账号: {}", account.email))
