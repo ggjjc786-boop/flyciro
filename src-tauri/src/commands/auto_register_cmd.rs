@@ -1374,13 +1374,19 @@ async fn perform_kiro_login_with_browser(
     // Step 4: 第一个页面 - 自动点击 "Confirm and continue" 按钮
     println!("[Kiro Login] Step 4: Auto-clicking 'Confirm and continue' button on first page...");
     
-    // 尝试多个可能的按钮 XPath
+    // 尝试多个可能的按钮 XPath - 根据实际HTML结构
     let confirm_continue_xpaths = vec![
-        "//button[contains(text(), 'Confirm and continue')]",
-        "//button[contains(., 'Confirm and continue')]",
+        // 中文按钮
+        "//button[text()='确认并继续']",
         "//button[contains(text(), '确认并继续')]",
+        "//input[@type='submit' and @value='确认并继续']",
+        // 英文按钮
+        "//button[text()='Confirm and continue']",
+        "//button[contains(text(), 'Confirm and continue')]",
         "//input[@type='submit' and @value='Confirm and continue']",
-        "//button[@type='submit']",
+        // 通用选择器 - 橙色按钮（不是取消按钮）
+        "//button[@type='submit' and not(contains(text(), '取消')) and not(contains(text(), 'Cancel'))]",
+        "//button[contains(@class, 'awsui-button-variant-primary')]",
     ];
     
     let mut confirm_continue_clicked = false;
@@ -1405,10 +1411,16 @@ async fn perform_kiro_login_with_browser(
     
     // 尝试多个可能的按钮 XPath
     let allow_access_xpaths = vec![
+        // 英文按钮
+        "//button[text()='Allow access']",
         "//button[contains(text(), 'Allow access')]",
-        "//button[contains(., 'Allow access')]",
         "//input[@type='submit' and @value='Allow access']",
-        "//button[@type='submit' and not(contains(., 'Deny'))]",
+        // 中文按钮（如果有）
+        "//button[text()='允许访问']",
+        "//button[contains(text(), '允许访问')]",
+        // 通用选择器 - 橙色按钮（不是拒绝按钮）
+        "//button[@type='submit' and not(contains(text(), 'Deny')) and not(contains(text(), '拒绝'))]",
+        "//button[contains(@class, 'awsui-button-variant-primary')]",
     ];
     
     let mut allow_access_clicked = false;
