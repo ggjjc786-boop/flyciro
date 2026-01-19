@@ -1371,14 +1371,69 @@ async fn perform_kiro_login_with_browser(
     
     std::thread::sleep(std::time::Duration::from_secs(3));
     
-    // Step 4: 等待用户手动点击授权按钮
-    println!("[Kiro Login] ========================================");
-    println!("[Kiro Login] 请在浏览器中手动点击授权按钮！");
-    println!("[Kiro Login] Please manually click the authorization buttons in the browser!");
-    println!("[Kiro Login] ========================================");
+    // Step 4: 第一个页面 - 自动点击 "Confirm and continue" 按钮
+    println!("[Kiro Login] Step 4: Auto-clicking 'Confirm and continue' button on first page...");
     
-    // Step 5: 轮询获取 Token（等待用户完成授权）
-    println!("[Kiro Login] Waiting for user to complete authorization...");
+    // 等待 "Confirm and continue" 按钮出现并点击
+    let confirm_continue_selectors = vec![
+        "//button[contains(text(), 'Confirm and continue')]",
+        "//button[contains(., 'Confirm and continue')]",
+        "//button[contains(text(), '确认并继续')]",
+        "//button[contains(., '确认并继续')]",
+        "//button[@type='submit' and not(contains(., 'Cancel'))]",
+        "//button[@type='submit' and not(contains(., '取消'))]",
+    ];
+    
+    let mut confirm_continue_clicked = false;
+    for selector in &confirm_continue_selectors {
+        if _automation.wait_for_element(tab, selector, 10).await? {
+            println!("[Kiro Login] Found 'Confirm and continue' button with selector: {}", selector);
+            if let Ok(_) = _automation.click_element(tab, selector) {
+                println!("[Kiro Login] Successfully clicked 'Confirm and continue' button");
+                confirm_continue_clicked = true;
+                std::thread::sleep(std::time::Duration::from_secs(4));
+                break;
+            }
+        }
+    }
+    
+    if !confirm_continue_clicked {
+        println!("[Kiro Login] Warning: Could not find or click 'Confirm and continue' button, trying to continue...");
+    }
+    
+    // Step 5: 第二个页面 - 自动点击 "Allow access" 按钮
+    println!("[Kiro Login] Step 5: Auto-clicking 'Allow access' button on second page...");
+    
+    // 等待 "Allow access" 按钮出现并点击
+    let allow_access_selectors = vec![
+        "//button[contains(text(), 'Allow access')]",
+        "//button[contains(., 'Allow access')]",
+        "//button[@type='submit' and contains(., 'Allow')]",
+        "//*[contains(@class, 'awsui-button') and contains(., 'Allow access')]",
+        "//button[contains(@class, 'awsui-button-variant-primary')]",
+    ];
+    
+    let mut allow_access_clicked = false;
+    for selector in &allow_access_selectors {
+        if _automation.wait_for_element(tab, selector, 10).await? {
+            println!("[Kiro Login] Found 'Allow access' button with selector: {}", selector);
+            if let Ok(_) = _automation.click_element(tab, selector) {
+                println!("[Kiro Login] Successfully clicked 'Allow access' button");
+                allow_access_clicked = true;
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                break;
+            }
+        }
+    }
+    
+    if !allow_access_clicked {
+        println!("[Kiro Login] Warning: Could not find or click 'Allow access' button");
+    }
+    
+    println!("[Kiro Login] Authorization buttons clicked, waiting for token...");
+    
+    // Step 6: 轮询获取 Token
+    println!("[Kiro Login] Step 6: Polling for token...");
     let poll_interval = device_auth.interval.unwrap_or(5) as u64;
     let max_attempts = (device_auth.expires_in / poll_interval as i64) as usize;
 

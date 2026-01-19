@@ -59,29 +59,39 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
   };
 
   const handleDeleteAll = async () => {
-    const confirmed = await showConfirm(
-      '确定要删除所有账号数据吗（包括进行中的账户）？此操作无法撤销！',
-      '确认删除'
-    );
-
-    if (confirmed) {
-      const doubleConfirmed = await showConfirm(
-        '再次确认：这将永久删除所有账号数据（包括进行中状态）！',
-        '最终确认'
+    console.log('[ControlPanel] Delete all button clicked');
+    try {
+      const confirmed = await showConfirm(
+        '确定要删除所有账号数据吗（包括进行中的账户）？此操作无法撤销！',
+        '确认删除'
       );
+      console.log('[ControlPanel] First confirmation:', confirmed);
 
-      if (doubleConfirmed) {
-        setIsLoading(true);
-        try {
-          await api.deleteAllAccounts();
-          await showSuccess('已成功删除所有数据');
-          onRefresh();
-        } catch (error) {
-          await showError('删除失败: ' + error);
-        } finally {
-          setIsLoading(false);
+      if (confirmed) {
+        const doubleConfirmed = await showConfirm(
+          '再次确认：这将永久删除所有账号数据（包括进行中状态）！',
+          '最终确认'
+        );
+        console.log('[ControlPanel] Second confirmation:', doubleConfirmed);
+
+        if (doubleConfirmed) {
+          setIsLoading(true);
+          try {
+            console.log('[ControlPanel] Calling deleteAllAccounts API...');
+            await api.deleteAllAccounts();
+            console.log('[ControlPanel] Delete successful');
+            await showSuccess('已成功删除所有数据');
+            onRefresh();
+          } catch (error) {
+            console.error('[ControlPanel] Delete failed:', error);
+            await showError('删除失败: ' + error);
+          } finally {
+            setIsLoading(false);
+          }
         }
       }
+    } catch (error) {
+      console.error('[ControlPanel] Error in handleDeleteAll:', error);
     }
   };
 
@@ -99,21 +109,31 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
   };
 
   const handleBatchRegistration = async () => {
-    const confirmed = await showConfirm(
-      '确定要对所有未注册的账号进行批量注册吗？这将依次处理所有账号。',
-      '批量注册确认'
-    );
+    console.log('[ControlPanel] Batch registration button clicked');
+    try {
+      const confirmed = await showConfirm(
+        '确定要对所有未注册的账号进行批量注册吗？这将依次处理所有账号。',
+        '批量注册确认'
+      );
+      console.log('[ControlPanel] Confirmation:', confirmed);
 
-    if (confirmed) {
-      setIsLoading(true);
-      try {
-        await api.startBatchRegistration();
-        onRefresh();
-      } catch (error) {
-        await showError('批量注册失败: ' + error);
-      } finally {
-        setIsLoading(false);
+      if (confirmed) {
+        setIsLoading(true);
+        try {
+          console.log('[ControlPanel] Calling startBatchRegistration API...');
+          const result = await api.startBatchRegistration();
+          console.log('[ControlPanel] Batch registration result:', result);
+          await showSuccess(result);
+          onRefresh();
+        } catch (error) {
+          console.error('[ControlPanel] Batch registration failed:', error);
+          await showError('批量注册失败: ' + error);
+        } finally {
+          setIsLoading(false);
+        }
       }
+    } catch (error) {
+      console.error('[ControlPanel] Error in handleBatchRegistration:', error);
     }
   };
 
@@ -221,7 +241,10 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
           </button>
           <button
             className="px-3 py-2 border border-blue-500 text-blue-500 rounded-lg text-xs font-medium transition-all hover:bg-blue-500/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
-            onClick={handleBatchRegistration}
+            onClick={(e) => {
+              console.log('[ControlPanel] Batch registration button click event:', e);
+              handleBatchRegistration();
+            }}
             disabled={isLoading}
           >
             {isLoading ? (
@@ -245,7 +268,10 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
           </button>
           <button
             className="px-3 py-2 border border-red-500 text-red-500 rounded-lg text-xs font-medium transition-all hover:bg-red-500/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
-            onClick={handleDeleteAll}
+            onClick={(e) => {
+              console.log('[ControlPanel] Delete all button click event:', e);
+              handleDeleteAll();
+            }}
             disabled={isLoading}
           >
             {isLoading ? (
