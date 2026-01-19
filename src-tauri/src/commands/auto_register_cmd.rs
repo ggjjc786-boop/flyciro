@@ -1149,7 +1149,7 @@ async fn perform_kiro_login_with_browser(
     _kiro_password: &str,
     _email_client_id: &str,
     _email_refresh_token: &str,
-    automation: &BrowserAutomation,
+    _automation: &BrowserAutomation,
     _browser: &headless_chrome::Browser,
     tab: &std::sync::Arc<headless_chrome::Tab>,
 ) -> Result<KiroCredentials> {
@@ -1182,51 +1182,14 @@ async fn perform_kiro_login_with_browser(
     
     std::thread::sleep(std::time::Duration::from_secs(3));
     
-    // Step 4: 点击允许/授权按钮（因为已经登录，应该直接到授权页面）
-    println!("[Kiro Login] Looking for allow/authorize button...");
+    // Step 4: 等待用户手动点击授权按钮
+    println!("[Kiro Login] ========================================");
+    println!("[Kiro Login] 请在浏览器中手动点击授权按钮！");
+    println!("[Kiro Login] Please manually click the authorization buttons in the browser!");
+    println!("[Kiro Login] ========================================");
     
-    // 等待授权页面加载
-    std::thread::sleep(std::time::Duration::from_secs(3));
-    
-    // 尝试点击允许按钮
-    let allow_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/span/span/awsui-button/button";
-    
-    if automation.wait_for_element(&tab, allow_button_xpath, 10).await.unwrap_or(false) {
-        println!("[Kiro Login] Found allow button, clicking...");
-        automation.click_element(&tab, allow_button_xpath)?;
-        std::thread::sleep(std::time::Duration::from_secs(3));
-    } else {
-        println!("[Kiro Login] Allow button not found, trying JavaScript click...");
-        
-        // 使用 JavaScript 查找并点击授权按钮
-        let click_allow_script = r#"
-            (function() {
-                var buttons = document.querySelectorAll('button');
-                for (var i = 0; i < buttons.length; i++) {
-                    var text = buttons[i].textContent || buttons[i].innerText || '';
-                    if (text.indexOf('允许') !== -1 || text.indexOf('Allow') !== -1 || text.indexOf('Authorize') !== -1) {
-                        buttons[i].click();
-                        return 'clicked:' + text;
-                    }
-                }
-                return 'not_found';
-            })()
-        "#;
-        
-        match tab.evaluate(click_allow_script, true) {
-            Ok(result) => {
-                if let Some(value) = result.value {
-                    println!("[Kiro Login] Allow button click result: {}", value);
-                }
-            }
-            Err(e) => {
-                println!("[Kiro Login] Failed to click allow button: {}", e);
-            }
-        }
-    }
-    
-    // Step 5: 轮询获取 Token
-    println!("[Kiro Login] Step 5: Polling for token...");
+    // Step 5: 轮询获取 Token（等待用户完成授权）
+    println!("[Kiro Login] Waiting for user to complete authorization...");
     let poll_interval = device_auth.interval.unwrap_or(5) as u64;
     let max_attempts = (device_auth.expires_in / poll_interval as i64) as usize;
 
@@ -1239,7 +1202,9 @@ async fn perform_kiro_login_with_browser(
             &device_auth.device_code,
         ).await {
             Ok(DevicePollResult::Success(token)) => {
-                println!("[Kiro Login] Token obtained successfully!");
+                println!("[Kiro Login] ========================================");
+                println!("[Kiro Login] 授权成功！Token obtained successfully!");
+                println!("[Kiro Login] ========================================");
                 return Ok(KiroCredentials {
                     client_id: client_reg.client_id,
                     client_secret: client_reg.client_secret,
@@ -1249,7 +1214,7 @@ async fn perform_kiro_login_with_browser(
                 });
             }
             Ok(DevicePollResult::Pending) => {
-                println!("[Kiro Login] Authorization pending... (attempt {}/{})", attempt + 1, max_attempts);
+                println!("[Kiro Login] Waiting for authorization... (attempt {}/{}) - 等待用户授权中...", attempt + 1, max_attempts);
                 continue;
             }
             Ok(DevicePollResult::SlowDown) => {
@@ -1269,7 +1234,7 @@ async fn perform_kiro_login_with_browser(
         }
     }
 
-    Err(anyhow!("获取 Token 超时"))
+    Err(anyhow!("获取 Token 超时 - 用户未在规定时间内完成授权"))
 }
 
 /// 执行 Kiro 登录流程并获取凭证
