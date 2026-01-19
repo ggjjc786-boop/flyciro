@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Filter, Trash2, Settings, Loader2, PlayCircle, Download, Cloud, Upload } from 'lucide-react';
+import { Filter, Settings, Loader2, Download, Cloud, Upload } from 'lucide-react';
 import { api } from '../../api/autoRegister';
 import { useStore } from '../../stores/autoRegisterStore';
 import { showConfirm, showSuccess, showError } from '../../utils/dialog';
@@ -240,21 +240,6 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
             <span>设置</span>
           </button>
           <button
-            className="px-3 py-2 border border-blue-500 text-blue-500 rounded-lg text-xs font-medium transition-all hover:bg-blue-500/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
-            onClick={(e) => {
-              console.log('[ControlPanel] Batch registration button click event:', e);
-              handleBatchRegistration();
-            }}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <PlayCircle size={14} />
-            )}
-            <span>全部注册</span>
-          </button>
-          <button
             className={`px-3 py-2 border rounded-lg text-xs font-medium transition-all hover:scale-[1.02] flex items-center justify-center gap-1.5 ${colors.text} ${colors.card} ${colors.cardBorder} disabled:opacity-50`}
             onClick={handleExport}
             disabled={isLoading}
@@ -265,21 +250,6 @@ export function ControlPanel({ onFilterChange, onRefresh }: ControlPanelProps) {
               <Download size={14} />
             )}
             <span>导出</span>
-          </button>
-          <button
-            className="px-3 py-2 border border-red-500 text-red-500 rounded-lg text-xs font-medium transition-all hover:bg-red-500/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
-            onClick={(e) => {
-              console.log('[ControlPanel] Delete all button click event:', e);
-              handleDeleteAll();
-            }}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Trash2 size={14} />
-            )}
-            <span>删除</span>
           </button>
           <button
             className="px-3 py-2 border border-cyan-500 text-cyan-500 rounded-lg text-xs font-medium transition-all hover:bg-cyan-500/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
