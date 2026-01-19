@@ -571,7 +571,11 @@ pub async fn auto_register_start_batch_registration(
         ).await;
 
         match result {
-            Ok(kiro_password) => {
+            Ok((kiro_password, automation, _browser, _tab)) => {
+                // 批量注册时不自动获取凭证，只保存密码
+                // 清理浏览器数据
+                let _ = automation.clear_browser_data();
+                
                 // Update account with success
                 let conn = db.0.lock().map_err(|e| e.to_string())?;
                 database::update_account(
@@ -1141,7 +1145,7 @@ pub async fn auto_register_get_credentials_and_import(
 
 /// 使用已登录的浏览器会话执行 Kiro 登录流程并获取凭证
 async fn perform_kiro_login_with_browser(
-    email: &str,
+    _email: &str,
     _kiro_password: &str,
     _email_client_id: &str,
     _email_refresh_token: &str,
