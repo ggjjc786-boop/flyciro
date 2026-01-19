@@ -333,6 +333,10 @@ pub async fn auto_register_start_registration(
                             
                             let expires_at = chrono::Local::now() + chrono::Duration::seconds(auth_result.expires_in);
                             
+                            // 先克隆需要多次使用的值
+                            let access_token_clone = auth_result.access_token.clone();
+                            let refresh_token_clone = auth_result.refresh_token.clone();
+                            
                             // 添加到主账号列表
                             let mut store = app_state.store.lock().unwrap();
                             
@@ -395,8 +399,8 @@ pub async fn auto_register_start_registration(
                                 provider: "BuilderId".to_string(),
                             };
                             *app_state.auth.user.lock().unwrap() = Some(user);
-                            *app_state.auth.access_token.lock().unwrap() = Some(auth_result.access_token.clone());
-                            *app_state.auth.refresh_token.lock().unwrap() = Some(auth_result.refresh_token.clone());
+                            *app_state.auth.access_token.lock().unwrap() = Some(access_token_clone);
+                            *app_state.auth.refresh_token.lock().unwrap() = Some(refresh_token_clone);
                             
                             // 发送登录成功事件，通知前端刷新
                             if !account_id_for_event.is_empty() {
@@ -1236,6 +1240,10 @@ pub async fn auto_register_get_credentials_and_import(
                     
                     let expires_at = chrono::Local::now() + chrono::Duration::seconds(auth_result.expires_in);
                     
+                    // 先克隆需要多次使用的值
+                    let access_token_clone = auth_result.access_token.clone();
+                    let refresh_token_clone = auth_result.refresh_token.clone();
+                    
                     // 添加到主账号列表
                     let mut store = app_state.store.lock().unwrap();
                     
@@ -1298,8 +1306,8 @@ pub async fn auto_register_get_credentials_and_import(
                         provider: "BuilderId".to_string(),
                     };
                     *app_state.auth.user.lock().unwrap() = Some(user);
-                    *app_state.auth.access_token.lock().unwrap() = Some(auth_result.access_token.clone());
-                    *app_state.auth.refresh_token.lock().unwrap() = Some(auth_result.refresh_token.clone());
+                    *app_state.auth.access_token.lock().unwrap() = Some(access_token_clone);
+                    *app_state.auth.refresh_token.lock().unwrap() = Some(refresh_token_clone);
                     
                     // 发送登录成功事件，通知前端刷新
                     if !account_id_for_event.is_empty() {
