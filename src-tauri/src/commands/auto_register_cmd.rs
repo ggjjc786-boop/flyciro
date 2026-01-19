@@ -1374,63 +1374,61 @@ async fn perform_kiro_login_with_browser(
     // Step 4: 第一个页面 - 自动点击 "Confirm and continue" 按钮
     println!("[Kiro Login] Step 4: Auto-clicking 'Confirm and continue' button on first page...");
     
-    // 等待 "Confirm and continue" 按钮出现并点击
-    let confirm_continue_selectors = vec![
+    // 尝试多个可能的按钮 XPath
+    let confirm_continue_xpaths = vec![
         "//button[contains(text(), 'Confirm and continue')]",
         "//button[contains(., 'Confirm and continue')]",
         "//button[contains(text(), '确认并继续')]",
-        "//button[contains(., '确认并继续')]",
-        "//button[@type='submit' and not(contains(., 'Cancel'))]",
-        "//button[@type='submit' and not(contains(., '取消'))]",
+        "//input[@type='submit' and @value='Confirm and continue']",
+        "//button[@type='submit']",
     ];
     
     let mut confirm_continue_clicked = false;
-    for selector in &confirm_continue_selectors {
-        if _automation.wait_for_element(tab, selector, 10).await? {
-            println!("[Kiro Login] Found 'Confirm and continue' button with selector: {}", selector);
-            if let Ok(_) = _automation.click_element(tab, selector) {
-                println!("[Kiro Login] Successfully clicked 'Confirm and continue' button");
-                confirm_continue_clicked = true;
-                std::thread::sleep(std::time::Duration::from_secs(4));
-                break;
-            }
+    for xpath in &confirm_continue_xpaths {
+        println!("[Kiro Login] Trying to find button with xpath: {}", xpath);
+        if _automation.wait_for_element(tab, xpath, 5).await? {
+            println!("[Kiro Login] Found 'Confirm and continue' button with xpath: {}", xpath);
+            _automation.click_element(tab, xpath)?;
+            println!("[Kiro Login] Successfully clicked 'Confirm and continue' button");
+            confirm_continue_clicked = true;
+            std::thread::sleep(std::time::Duration::from_secs(4));
+            break;
         }
     }
     
     if !confirm_continue_clicked {
-        println!("[Kiro Login] Warning: Could not find or click 'Confirm and continue' button, trying to continue...");
+        return Err(anyhow!("Could not find or click 'Confirm and continue' button"));
     }
     
     // Step 5: 第二个页面 - 自动点击 "Allow access" 按钮
     println!("[Kiro Login] Step 5: Auto-clicking 'Allow access' button on second page...");
     
-    // 等待 "Allow access" 按钮出现并点击
-    let allow_access_selectors = vec![
+    // 尝试多个可能的按钮 XPath
+    let allow_access_xpaths = vec![
         "//button[contains(text(), 'Allow access')]",
         "//button[contains(., 'Allow access')]",
-        "//button[@type='submit' and contains(., 'Allow')]",
-        "//*[contains(@class, 'awsui-button') and contains(., 'Allow access')]",
-        "//button[contains(@class, 'awsui-button-variant-primary')]",
+        "//input[@type='submit' and @value='Allow access']",
+        "//button[@type='submit' and not(contains(., 'Deny'))]",
     ];
     
     let mut allow_access_clicked = false;
-    for selector in &allow_access_selectors {
-        if _automation.wait_for_element(tab, selector, 10).await? {
-            println!("[Kiro Login] Found 'Allow access' button with selector: {}", selector);
-            if let Ok(_) = _automation.click_element(tab, selector) {
-                println!("[Kiro Login] Successfully clicked 'Allow access' button");
-                allow_access_clicked = true;
-                std::thread::sleep(std::time::Duration::from_secs(2));
-                break;
-            }
+    for xpath in &allow_access_xpaths {
+        println!("[Kiro Login] Trying to find button with xpath: {}", xpath);
+        if _automation.wait_for_element(tab, xpath, 5).await? {
+            println!("[Kiro Login] Found 'Allow access' button with xpath: {}", xpath);
+            _automation.click_element(tab, xpath)?;
+            println!("[Kiro Login] Successfully clicked 'Allow access' button");
+            allow_access_clicked = true;
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            break;
         }
     }
     
     if !allow_access_clicked {
-        println!("[Kiro Login] Warning: Could not find or click 'Allow access' button");
+        return Err(anyhow!("Could not find or click 'Allow access' button"));
     }
     
-    println!("[Kiro Login] Authorization buttons clicked, waiting for token...");
+    println!("[Kiro Login] Authorization buttons clicked successfully, waiting for token...");
     
     // Step 6: 轮询获取 Token
     println!("[Kiro Login] Step 6: Polling for token...");
