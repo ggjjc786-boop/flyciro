@@ -218,7 +218,7 @@ pub async fn auto_register_start_registration(
     ).await;
 
     match result {
-        Ok(kiro_password) => {
+        Ok((kiro_password, automation, browser, tab)) => {
             // Update account with success
             {
                 let conn = db.0.lock().map_err(|e| e.to_string())?;
@@ -245,12 +245,16 @@ pub async fn auto_register_start_registration(
 
             // 自动获取 Kiro 凭证
             println!("[Auto Register] Registration successful, now fetching Kiro credentials...");
-            let credentials_result = perform_kiro_login(
+            
+            // 使用同一个浏览器会话完成 AWS SSO 授权
+            let credentials_result = perform_kiro_login_with_browser(
                 &account.email,
                 &kiro_password,
                 &account.client_id,
                 &account.refresh_token,
-                settings.browser_mode.clone(),
+                &automation,
+                &browser,
+                &tab,
             ).await;
 
             match credentials_result {
@@ -277,12 +281,18 @@ pub async fn auto_register_start_registration(
                             },
                         )
                         .map_err(|e| e.to_string())?;
-                    } // conn 在这里被释放
+                    }
+
+                    // 清理浏览器数据
+                    let _ = automation.clear_browser_data();
 
                     println!("[Auto Register] Kiro credentials obtained successfully!");
                     Ok(format!("注册完成！密码: {}\n已自动获取 AWS Builder ID 凭证", kiro_password))
                 }
                 Err(e) => {
+                    // 清理浏览器数据
+                    let _ = automation.clear_browser_data();
+                    
                     println!("[Auto Register] Failed to get Kiro credentials: {}", e);
                     Ok(format!("注册完成！密码: {}\n但获取凭证失败: {}", kiro_password, e))
                 }
@@ -323,7 +333,7 @@ async fn perform_registration(
     refresh_token: &str,
     name: &str,
     browser_mode: BrowserMode,
-) -> Result<String> {
+) -> Result<(String, BrowserAutomation, headless_chrome::Browser, std::sync::Arc<headless_chrome::Tab>)> {
     let (width, height) = BrowserAutomation::generate_random_window_size();
     let os_version = BrowserAutomation::generate_random_os_version();
 
@@ -467,9 +477,9 @@ async fn perform_registration(
         let success_page_xpath = "/html/body/div[2]/div/div[1]/main/div/div[1]/div/div/div/div/div[2]";
 
         if automation.wait_for_element(&tab, success_page_xpath, 15).await? {
-            // Registration successful
-            automation.clear_browser_data()?;
-            return Ok(password);
+            // Registration successful - 不关闭浏览器，返回浏览器对象供后续使用
+            println!("[Registration] Success! Keeping browser open for AWS SSO authorization...");
+            return Ok((password, automation, browser, tab));
         } else {
             return Err(anyhow!("Success page not found - registration may have failed"));
         }
@@ -1127,6 +1137,135 @@ pub async fn auto_register_get_credentials_and_import(
             Err(format!("获取凭证失败: {}", e))
         }
     }
+}
+
+/// 使用已登录的浏览器会话执行 Kiro 登录流程并获取凭证
+async fn perform_kiro_login_with_browser(
+    email: &str,
+    _kiro_password: &str,
+    _email_client_id: &str,
+    _email_refresh_token: &str,
+    automation: &BrowserAutomation,
+    _browser: &headless_chrome::Browser,
+    tab: &std::sync::Arc<headless_chrome::Tab>,
+) -> Result<KiroCredentials> {
+    let start_url = "https://view.awsapps.com/start";
+    let sso_client = AWSSSOClient::new("us-east-1");
+
+    // Step 1: 注册设备客户端
+    println!("[Kiro Login] Step 1: Registering device client...");
+    let client_reg = sso_client.register_device_client(start_url).await
+        .map_err(|e| anyhow!("注册设备客户端失败: {}", e))?;
+
+    // Step 2: 发起设备授权
+    println!("[Kiro Login] Step 2: Starting device authorization...");
+    let device_auth = sso_client.start_device_authorization(
+        &client_reg.client_id,
+        &client_reg.client_secret,
+        start_url,
+    ).await
+        .map_err(|e| anyhow!("发起设备授权失败: {}", e))?;
+
+    // Step 3: 在已登录的浏览器中导航到授权页面
+    println!("[Kiro Login] Step 3: Navigating to authorization page in logged-in browser...");
+    let verification_url = device_auth.verification_uri_complete.as_ref()
+        .unwrap_or(&device_auth.verification_uri);
+    
+    println!("[Kiro Login] Navigating to: {}", verification_url);
+    tab.navigate_to(verification_url)
+        .context("Failed to navigate to verification URL")?;
+    tab.wait_until_navigated()?;
+    
+    std::thread::sleep(std::time::Duration::from_secs(3));
+    
+    // Step 4: 点击允许/授权按钮（因为已经登录，应该直接到授权页面）
+    println!("[Kiro Login] Looking for allow/authorize button...");
+    
+    // 等待授权页面加载
+    std::thread::sleep(std::time::Duration::from_secs(3));
+    
+    // 尝试点击允许按钮
+    let allow_button_xpath = "/html/body/div/div/main/div/div/form/div[2]/span/span/awsui-button/button";
+    
+    if automation.wait_for_element(&tab, allow_button_xpath, 10).await.unwrap_or(false) {
+        println!("[Kiro Login] Found allow button, clicking...");
+        automation.click_element(&tab, allow_button_xpath)?;
+        std::thread::sleep(std::time::Duration::from_secs(3));
+    } else {
+        println!("[Kiro Login] Allow button not found, trying JavaScript click...");
+        
+        // 使用 JavaScript 查找并点击授权按钮
+        let click_allow_script = r#"
+            (function() {
+                var buttons = document.querySelectorAll('button');
+                for (var i = 0; i < buttons.length; i++) {
+                    var text = buttons[i].textContent || buttons[i].innerText || '';
+                    if (text.indexOf('允许') !== -1 || text.indexOf('Allow') !== -1 || text.indexOf('Authorize') !== -1) {
+                        buttons[i].click();
+                        return 'clicked:' + text;
+                    }
+                }
+                return 'not_found';
+            })()
+        "#;
+        
+        match tab.evaluate(click_allow_script, true) {
+            Ok(result) => {
+                if let Some(value) = result.value {
+                    println!("[Kiro Login] Allow button click result: {}", value);
+                }
+            }
+            Err(e) => {
+                println!("[Kiro Login] Failed to click allow button: {}", e);
+            }
+        }
+    }
+    
+    // Step 5: 轮询获取 Token
+    println!("[Kiro Login] Step 5: Polling for token...");
+    let poll_interval = device_auth.interval.unwrap_or(5) as u64;
+    let max_attempts = (device_auth.expires_in / poll_interval as i64) as usize;
+
+    for attempt in 0..max_attempts {
+        std::thread::sleep(std::time::Duration::from_secs(poll_interval));
+
+        match sso_client.poll_device_token(
+            &client_reg.client_id,
+            &client_reg.client_secret,
+            &device_auth.device_code,
+        ).await {
+            Ok(DevicePollResult::Success(token)) => {
+                println!("[Kiro Login] Token obtained successfully!");
+                return Ok(KiroCredentials {
+                    client_id: client_reg.client_id,
+                    client_secret: client_reg.client_secret,
+                    refresh_token: token.refresh_token,
+                    access_token: token.access_token,
+                    id_token: token.id_token,
+                });
+            }
+            Ok(DevicePollResult::Pending) => {
+                println!("[Kiro Login] Authorization pending... (attempt {}/{})", attempt + 1, max_attempts);
+                continue;
+            }
+            Ok(DevicePollResult::SlowDown) => {
+                println!("[Kiro Login] Rate limited, slowing down...");
+                std::thread::sleep(std::time::Duration::from_secs(5));
+                continue;
+            }
+            Ok(DevicePollResult::Expired) => {
+                return Err(anyhow!("设备授权已过期"));
+            }
+            Ok(DevicePollResult::Denied) => {
+                return Err(anyhow!("授权被拒绝"));
+            }
+            Err(e) => {
+                return Err(anyhow!("轮询 Token 失败: {}", e));
+            }
+        }
+    }
+
+    Err(anyhow!("获取 Token 超时"))
 }
 
 /// 执行 Kiro 登录流程并获取凭证
