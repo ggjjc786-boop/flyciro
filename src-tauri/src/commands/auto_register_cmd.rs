@@ -8,6 +8,75 @@ use crate::auth::User;
 use tauri::{State, Emitter};
 use anyhow::{Result, Context, anyhow};
 
+/// 保存 Kiro 本地 token 到文件系统
+fn save_kiro_local_token(
+    access_token: &str,
+    refresh_token: &str,
+    provider: &str,
+    client_id_hash: Option<&str>,
+    region: Option<&str>,
+    client_id: Option<&str>,
+    client_secret: Option<&str>,
+) -> Result<(), String> {
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .map_err(|_| "Cannot find home directory")?;
+    
+    let dir_path = std::path::Path::new(&home)
+        .join(".aws")
+        .join("sso")
+        .join("cache");
+    
+    std::fs::create_dir_all(&dir_path)
+        .map_err(|e| format!("Failed to create directory: {}", e))?;
+    
+    let file_path = dir_path.join("kiro-auth-token.json");
+    
+    let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
+    
+    // BuilderId 账号使用 IdC 格式
+    let token_data = serde_json::json!({
+        "accessToken": access_token,
+        "refreshToken": refresh_token,
+        "expiresAt": expires_at.to_rfc3339(),
+        "authMethod": "IdC",
+        "provider": provider,
+        "clientIdHash": client_id_hash.unwrap_or(""),
+        "region": region.unwrap_or("us-east-1")
+    });
+    
+    let content = serde_json::to_string_pretty(&token_data)
+        .map_err(|e| format!("Failed to serialize: {}", e))?;
+    
+    // 原子写入：先写临时文件，再覆盖
+    let temp_file_path = dir_path.join("kiro-auth-token.json.tmp");
+    std::fs::write(&temp_file_path, &content)
+        .map_err(|e| format!("Failed to write temp file: {}", e))?;
+    std::fs::rename(&temp_file_path, &file_path)
+        .map_err(|e| format!("Failed to rename file: {}", e))?;
+    
+    // 写入 Client Registration 文件
+    if let (Some(hash), Some(cid), Some(csec)) = (client_id_hash, client_id, client_secret) {
+        let client_reg_path = dir_path.join(format!("{}.json", hash));
+        let client_reg_temp_path = dir_path.join(format!("{}.json.tmp", hash));
+        let client_expires = chrono::Utc::now() + chrono::Duration::days(90);
+        let client_reg_data = serde_json::json!({
+            "clientId": cid,
+            "clientSecret": csec,
+            "expiresAt": client_expires.to_rfc3339()
+        });
+        let client_reg_content = serde_json::to_string_pretty(&client_reg_data)
+            .map_err(|e| format!("Failed to serialize client registration: {}", e))?;
+        // 原子写入
+        std::fs::write(&client_reg_temp_path, client_reg_content)
+            .map_err(|e| format!("Failed to write client registration temp: {}", e))?;
+        std::fs::rename(&client_reg_temp_path, &client_reg_path)
+            .map_err(|e| format!("Failed to rename client registration: {}", e))?;
+    }
+    
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn auto_register_get_accounts(
     db: State<'_, DbState>,
@@ -399,8 +468,19 @@ pub async fn auto_register_start_registration(
                                 provider: "BuilderId".to_string(),
                             };
                             *app_state.auth.user.lock().unwrap() = Some(user);
-                            *app_state.auth.access_token.lock().unwrap() = Some(access_token_clone);
-                            *app_state.auth.refresh_token.lock().unwrap() = Some(refresh_token_clone);
+                            *app_state.auth.access_token.lock().unwrap() = Some(access_token_clone.clone());
+                            *app_state.auth.refresh_token.lock().unwrap() = Some(refresh_token_clone.clone());
+                            
+                            // 保存到本地文件系统，让 Kiro IDE 能识别登录状态
+                            let _ = save_kiro_local_token(
+                                &access_token_clone,
+                                &refresh_token_clone,
+                                "BuilderId",
+                                Some(&client_id_hash),
+                                Some(region),
+                                Some(&credentials.client_id),
+                                Some(&credentials.client_secret),
+                            );
                             
                             // 发送登录成功事件，通知前端刷新
                             if !account_id_for_event.is_empty() {
@@ -1306,8 +1386,19 @@ pub async fn auto_register_get_credentials_and_import(
                         provider: "BuilderId".to_string(),
                     };
                     *app_state.auth.user.lock().unwrap() = Some(user);
-                    *app_state.auth.access_token.lock().unwrap() = Some(access_token_clone);
-                    *app_state.auth.refresh_token.lock().unwrap() = Some(refresh_token_clone);
+                    *app_state.auth.access_token.lock().unwrap() = Some(access_token_clone.clone());
+                    *app_state.auth.refresh_token.lock().unwrap() = Some(refresh_token_clone.clone());
+                    
+                    // 保存到本地文件系统，让 Kiro IDE 能识别登录状态
+                    let _ = save_kiro_local_token(
+                        &access_token_clone,
+                        &refresh_token_clone,
+                        "BuilderId",
+                        Some(&client_id_hash),
+                        Some(region),
+                        Some(&credentials.client_id),
+                        Some(&credentials.client_secret),
+                    );
                     
                     // 发送登录成功事件，通知前端刷新
                     if !account_id_for_event.is_empty() {
