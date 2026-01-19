@@ -130,6 +130,7 @@ pub fn run() {
             commands::auto_register_cmd::auto_register_batch_fetch_kiro_credentials,
             commands::auto_register_cmd::auto_register_import_to_main,
             commands::auto_register_cmd::auto_register_get_credentials_and_import,
+            crate::kiro::switch_kiro_account,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
