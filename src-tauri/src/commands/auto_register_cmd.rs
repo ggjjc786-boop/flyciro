@@ -1345,71 +1345,57 @@ async fn perform_browser_authorization(
     log_content.push_str(&format!("[Browser Auth] Email to input: {}\n", email));
     
     // 先等待一下确保页面元素加载完成
-    std::thread::sleep(std::time::Duration::from_secs(2));
+    std::thread::sleep(std::time::Duration::from_secs(3));
     
-    // 转义邮箱地址以防止 JavaScript 语法错误
-    let escaped_email = email.replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'");
-    log_content.push_str(&format!("[Browser Auth] Escaped email: {}\n", escaped_email));
-    
-    // AWS Builder ID 登录页面的邮箱输入框是 type="text"，不是 type="email"
-    let input_email_script = format!(
-        r#"
-        (function() {{
-            console.log('[Browser Auth JS] Looking for email input...');
+    // 先找到输入框的 ID
+    let find_input_id_script = r#"
+        (function() {
             var emailInput = document.querySelector('input[placeholder*="example.com"]') ||
-                           document.querySelector('input[placeholder*="username"]') ||
-                           document.querySelector('input[type="email"]') || 
-                           document.querySelector('input[name="email"]');
-            console.log('[Browser Auth JS] Email input found:', emailInput);
-            if (emailInput) {{
-                console.log('[Browser Auth JS] Input element type:', emailInput.type);
-                console.log('[Browser Auth JS] Input element id:', emailInput.id);
-                emailInput.focus();
-                
-                // 使用 React 的方式触发事件
-                var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-                nativeInputValueSetter.call(emailInput, "{}");
-                
-                emailInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                emailInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                emailInput.dispatchEvent(new Event('blur', {{ bubbles: true }}));
-                
-                console.log('[Browser Auth JS] Email input value after setting:', emailInput.value);
-                
-                // 等待一下再检查
-                setTimeout(function() {{
-                    console.log('[Browser Auth JS] Email input value after 500ms:', emailInput.value);
-                }}, 500);
-                
-                return 'success:' + emailInput.value;
-            }}
-            return 'failed:input_not_found';
-        }})()
-        "#,
-        escaped_email
-    );
+                           document.querySelector('input[placeholder*="username"]');
+            if (emailInput && emailInput.id) {
+                return emailInput.id;
+            }
+            return '';
+        })()
+    "#;
     
-    log_content.push_str(&format!("[Browser Auth] JavaScript to execute (first 200 chars): {}\n", 
-        &input_email_script.chars().take(200).collect::<String>()));
-    
-    match tab.evaluate(&input_email_script, true) {
+    let input_id = match tab.evaluate(find_input_id_script, true) {
         Ok(result) => {
             if let Some(value) = result.value {
-                let result_str = value.as_str().unwrap_or("unknown");
-                println!("[Browser Auth] Email input result: {}", result_str);
-                log_content.push_str(&format!("[Browser Auth] Email input result: {}\n", result_str));
-                if !result_str.starts_with("success:") {
-                    println!("[Browser Auth] WARNING: Failed to input email, but continuing...");
-                    log_content.push_str("[Browser Auth] WARNING: Failed to input email, but continuing...\n");
-                }
+                let id = value.as_str().unwrap_or("");
+                println!("[Browser Auth] Found input ID: {}", id);
+                log_content.push_str(&format!("[Browser Auth] Found input ID: {}\n", id));
+                id.to_string()
+            } else {
+                String::new()
             }
         }
         Err(e) => {
-            println!("[Browser Auth] Failed to input email: {}", e);
-            log_content.push_str(&format!("[Browser Auth] Failed to input email: {}\n", e));
-            println!("[Browser Auth] WARNING: Continuing despite error...");
-            log_content.push_str("[Browser Auth] WARNING: Continuing despite error...\n");
+            println!("[Browser Auth] Failed to find input ID: {}", e);
+            log_content.push_str(&format!("[Browser Auth] Failed to find input ID: {}\n", e));
+            String::new()
         }
+    };
+    
+    if !input_id.is_empty() {
+        // 使用 XPath 通过 ID 定位并输入
+        let email_xpath = format!("//*[@id='{}']", input_id);
+        println!("[Browser Auth] Using XPath: {}", email_xpath);
+        log_content.push_str(&format!("[Browser Auth] Using XPath: {}\n", email_xpath));
+        
+        match automation.input_text(&tab, &email_xpath, email) {
+            Ok(_) => {
+                println!("[Browser Auth] Email input successful via XPath");
+                log_content.push_str("[Browser Auth] Email input successful via XPath\n");
+            }
+            Err(e) => {
+                println!("[Browser Auth] Email input failed via XPath: {}", e);
+                log_content.push_str(&format!("[Browser Auth] Email input failed via XPath: {}\n", e));
+            }
+        }
+    } else {
+        println!("[Browser Auth] WARNING: Could not find input ID");
+        log_content.push_str("[Browser Auth] WARNING: Could not find input ID\n");
     }
     
     // 保存中间日志
