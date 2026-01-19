@@ -187,10 +187,10 @@ function Home() {
         </div>
 
         <div className="grid grid-cols-2 gap-6 mb-6">
-          {/* 本地 Kiro 账号 */}
+          {/* 系统信息 */}
           <div className={`card-glow ${colors.card} rounded-2xl shadow-sm border ${colors.cardBorder} overflow-hidden animate-scale-in delay-300`}>
             <div className={`px-6 py-4 border-b ${colors.cardBorder} flex items-center justify-between`}>
-              <h2 className={`font-semibold ${colors.text}`}>{t('home.currentAccount')}</h2>
+              <h2 className={`font-semibold ${colors.text}`}>系统信息</h2>
               <button 
                 onClick={handleRefresh} 
                 className={`btn-icon p-2 ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} rounded-xl ${refreshing ? 'spinning' : ''}`}
@@ -265,11 +265,25 @@ function Home() {
                 </div>
               ) : (
                 <div className="text-center py-10">
-                  <div className={`w-20 h-20 ${isDark ? 'bg-white/10' : 'bg-gray-100'} rounded-full flex items-center justify-center mx-auto mb-4 animate-float`}>
-                    <Users size={32} className={colors.textMuted} />
+                  <div className={`w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-float shadow-lg shadow-blue-500/25`}>
+                    <Sparkles size={32} className="text-white" />
                   </div>
-                  <div className={`${colors.textMuted} mb-1 font-medium`}>{t('home.notLoggedIn')}</div>
-                  <div className={`text-sm ${colors.textMuted}`}>{t('home.clickToSwitch')}</div>
+                  <div className={`${colors.text} mb-2 font-bold text-lg`}>Kiro 账号管理工具</div>
+                  <div className={`text-sm ${colors.textMuted} mb-3`}>专业的 AWS Builder ID 账号管理解决方案</div>
+                  <div className={`${isDark ? 'bg-white/5' : 'bg-gray-50'} rounded-xl p-4 space-y-2 text-left`}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className={colors.textMuted}>版本</span>
+                      <span className={colors.text}>v2.0.0</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className={colors.textMuted}>账号总数</span>
+                      <span className={colors.text}>{stats.total}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className={colors.textMuted}>活跃账号</span>
+                      <span className={colors.text}>{stats.active}</span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
