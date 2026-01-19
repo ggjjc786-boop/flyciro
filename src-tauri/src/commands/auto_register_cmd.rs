@@ -405,6 +405,9 @@ pub async fn auto_register_start_registration(
                             // 先克隆需要多次使用的值
                             let access_token_clone = auth_result.access_token.clone();
                             let refresh_token_clone = auth_result.refresh_token.clone();
+                            let client_id_hash_clone = client_id_hash.clone();
+                            let client_id_clone = credentials.client_id.clone();
+                            let client_secret_clone = credentials.client_secret.clone();
                             
                             // 添加到主账号列表
                             let mut store = app_state.store.lock().unwrap();
@@ -417,8 +420,8 @@ pub async fn auto_register_start_registration(
                                 existing.refresh_token = Some(auth_result.refresh_token);
                                 existing.user_id = user_id;
                                 existing.expires_at = Some(expires_at.format("%Y/%m/%d %H:%M:%S").to_string());
-                                existing.client_id = Some(credentials.client_id.clone());
-                                existing.client_secret = Some(credentials.client_secret.clone());
+                                existing.client_id = Some(credentials.client_id);
+                                existing.client_secret = Some(credentials.client_secret);
                                 existing.region = Some(region.to_string());
                                 existing.client_id_hash = Some(client_id_hash);
                                 existing.id_token = auth_result.id_token;
@@ -436,8 +439,8 @@ pub async fn auto_register_start_registration(
                                 main_account.provider = Some("BuilderId".to_string());
                                 main_account.user_id = user_id;
                                 main_account.expires_at = Some(expires_at.format("%Y/%m/%d %H:%M:%S").to_string());
-                                main_account.client_id = Some(credentials.client_id.clone());
-                                main_account.client_secret = Some(credentials.client_secret.clone());
+                                main_account.client_id = Some(credentials.client_id);
+                                main_account.client_secret = Some(credentials.client_secret);
                                 main_account.region = Some(region.to_string());
                                 main_account.client_id_hash = Some(client_id_hash);
                                 main_account.id_token = auth_result.id_token;
@@ -476,10 +479,10 @@ pub async fn auto_register_start_registration(
                                 &access_token_clone,
                                 &refresh_token_clone,
                                 "BuilderId",
-                                Some(&client_id_hash),
+                                Some(&client_id_hash_clone),
                                 Some(region),
-                                Some(&credentials.client_id),
-                                Some(&credentials.client_secret),
+                                Some(&client_id_clone),
+                                Some(&client_secret_clone),
                             );
                             
                             // 发送登录成功事件，通知前端刷新
@@ -1323,6 +1326,9 @@ pub async fn auto_register_get_credentials_and_import(
                     // 先克隆需要多次使用的值
                     let access_token_clone = auth_result.access_token.clone();
                     let refresh_token_clone = auth_result.refresh_token.clone();
+                    let client_id_hash_clone = client_id_hash.clone();
+                    let client_id_clone = credentials.client_id.clone();
+                    let client_secret_clone = credentials.client_secret.clone();
                     
                     // 添加到主账号列表
                     let mut store = app_state.store.lock().unwrap();
@@ -1394,10 +1400,10 @@ pub async fn auto_register_get_credentials_and_import(
                         &access_token_clone,
                         &refresh_token_clone,
                         "BuilderId",
-                        Some(&client_id_hash),
+                        Some(&client_id_hash_clone),
                         Some(region),
-                        Some(&credentials.client_id),
-                        Some(&credentials.client_secret),
+                        Some(&client_id_clone),
+                        Some(&client_secret_clone),
                     );
                     
                     // 发送登录成功事件，通知前端刷新
