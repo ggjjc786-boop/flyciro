@@ -18,6 +18,8 @@ fn save_kiro_local_token(
     client_id: Option<&str>,
     client_secret: Option<&str>,
 ) -> Result<(), String> {
+    println!("[Save Token] Starting to save kiro local token...");
+    
     let home = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .map_err(|_| "Cannot find home directory")?;
@@ -27,10 +29,13 @@ fn save_kiro_local_token(
         .join("sso")
         .join("cache");
     
+    println!("[Save Token] Directory path: {:?}", dir_path);
+    
     std::fs::create_dir_all(&dir_path)
         .map_err(|e| format!("Failed to create directory: {}", e))?;
     
     let file_path = dir_path.join("kiro-auth-token.json");
+    println!("[Save Token] File path: {:?}", file_path);
     
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
     
@@ -45,6 +50,8 @@ fn save_kiro_local_token(
         "region": region.unwrap_or("us-east-1")
     });
     
+    println!("[Save Token] Token data: {}", serde_json::to_string_pretty(&token_data).unwrap_or_default());
+    
     let content = serde_json::to_string_pretty(&token_data)
         .map_err(|e| format!("Failed to serialize: {}", e))?;
     
@@ -55,10 +62,14 @@ fn save_kiro_local_token(
     std::fs::rename(&temp_file_path, &file_path)
         .map_err(|e| format!("Failed to rename file: {}", e))?;
     
+    println!("[Save Token] Successfully saved kiro-auth-token.json");
+    
     // 写入 Client Registration 文件
     if let (Some(hash), Some(cid), Some(csec)) = (client_id_hash, client_id, client_secret) {
         let client_reg_path = dir_path.join(format!("{}.json", hash));
         let client_reg_temp_path = dir_path.join(format!("{}.json.tmp", hash));
+        println!("[Save Token] Client registration path: {:?}", client_reg_path);
+        
         let client_expires = chrono::Utc::now() + chrono::Duration::days(90);
         let client_reg_data = serde_json::json!({
             "clientId": cid,
@@ -72,8 +83,11 @@ fn save_kiro_local_token(
             .map_err(|e| format!("Failed to write client registration temp: {}", e))?;
         std::fs::rename(&client_reg_temp_path, &client_reg_path)
             .map_err(|e| format!("Failed to rename client registration: {}", e))?;
+        
+        println!("[Save Token] Successfully saved client registration file");
     }
     
+    println!("[Save Token] All token files saved successfully!");
     Ok(())
 }
 
@@ -475,7 +489,7 @@ pub async fn auto_register_start_registration(
                             *app_state.auth.refresh_token.lock().unwrap() = Some(refresh_token_clone.clone());
                             
                             // 保存到本地文件系统，让 Kiro IDE 能识别登录状态
-                            let _ = save_kiro_local_token(
+                            match save_kiro_local_token(
                                 &access_token_clone,
                                 &refresh_token_clone,
                                 "BuilderId",
@@ -483,7 +497,10 @@ pub async fn auto_register_start_registration(
                                 Some(region),
                                 Some(&client_id_clone),
                                 Some(&client_secret_clone),
-                            );
+                            ) {
+                                Ok(_) => println!("[Auto Register] Token saved to local filesystem successfully"),
+                                Err(e) => println!("[Auto Register] WARNING: Failed to save token to local filesystem: {}", e),
+                            }
                             
                             // 发送登录成功事件，通知前端刷新
                             if !account_id_for_event.is_empty() {
@@ -1396,7 +1413,7 @@ pub async fn auto_register_get_credentials_and_import(
                     *app_state.auth.refresh_token.lock().unwrap() = Some(refresh_token_clone.clone());
                     
                     // 保存到本地文件系统，让 Kiro IDE 能识别登录状态
-                    let _ = save_kiro_local_token(
+                    match save_kiro_local_token(
                         &access_token_clone,
                         &refresh_token_clone,
                         "BuilderId",
@@ -1404,7 +1421,10 @@ pub async fn auto_register_get_credentials_and_import(
                         Some(region),
                         Some(&client_id_clone),
                         Some(&client_secret_clone),
-                    );
+                    ) {
+                        Ok(_) => println!("[Get Credentials] Token saved to local filesystem successfully"),
+                        Err(e) => println!("[Get Credentials] WARNING: Failed to save token to local filesystem: {}", e),
+                    }
                     
                     // 发送登录成功事件，通知前端刷新
                     if !account_id_for_event.is_empty() {
