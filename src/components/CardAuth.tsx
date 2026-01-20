@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Key, Loader2, Shield, Smartphone } from 'lucide-react';
+import { Key, Loader2, Shield, Smartphone, AlertCircle, CheckCircle } from 'lucide-react';
 import { cardAuthApi } from '../api/cardAuth';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -15,6 +15,8 @@ export function CardAuth({ onAuthSuccess }: CardAuthProps) {
   const [deviceCode, setDeviceCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showUnbind, setShowUnbind] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     // 加载公告
@@ -30,17 +32,22 @@ export function CardAuth({ onAuthSuccess }: CardAuthProps) {
 
   const handleLogin = async () => {
     if (!cardKey.trim()) {
-      alert('请输入卡密');
+      setErrorMessage('请输入卡密');
       return;
     }
 
     setIsLoading(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+    
     try {
       const message = await cardAuthApi.verifyCardKey(cardKey);
-      alert(`登录成功！\n${message}`);
-      onAuthSuccess();
+      setSuccessMessage(`登录成功！${message}`);
+      setTimeout(() => {
+        onAuthSuccess();
+      }, 1500);
     } catch (error) {
-      alert(`登录失败：${error}`);
+      setErrorMessage(String(error));
     } finally {
       setIsLoading(false);
     }
@@ -48,20 +55,20 @@ export function CardAuth({ onAuthSuccess }: CardAuthProps) {
 
   const handleUnbind = async () => {
     if (!cardKey.trim()) {
-      alert('请输入卡密');
+      setErrorMessage('请输入卡密');
       return;
     }
 
-    const confirmed = confirm('确定要解绑此卡密吗？');
-    if (!confirmed) return;
-
     setIsLoading(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+    
     try {
       const message = await cardAuthApi.unbindCardKey(cardKey);
-      alert(`解绑成功！\n${message}`);
+      setSuccessMessage(`解绑成功！${message}`);
       setCardKey('');
     } catch (error) {
-      alert(`解绑失败：${error}`);
+      setErrorMessage(String(error));
     } finally {
       setIsLoading(false);
     }
@@ -81,6 +88,28 @@ export function CardAuth({ onAuthSuccess }: CardAuthProps) {
 
         {/* 内容 */}
         <div className="p-6 space-y-6">
+          {/* 错误消息 */}
+          {errorMessage && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3 animate-fade-in">
+              <AlertCircle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-red-800 mb-1">验证失败</h4>
+                <p className="text-sm text-red-600">{errorMessage}</p>
+              </div>
+            </div>
+          )}
+
+          {/* 成功消息 */}
+          {successMessage && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3 animate-fade-in">
+              <CheckCircle size={20} className="text-green-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-green-800 mb-1">操作成功</h4>
+                <p className="text-sm text-green-600">{successMessage}</p>
+              </div>
+            </div>
+          )}
+
           {/* 公告 */}
           <div className={`${isDark ? 'bg-blue-500/10' : 'bg-blue-50'} border ${isDark ? 'border-blue-500/20' : 'border-blue-200'} rounded-xl p-4`}>
             <h3 className={`text-sm font-semibold ${colors.text} mb-2 flex items-center gap-2`}>
