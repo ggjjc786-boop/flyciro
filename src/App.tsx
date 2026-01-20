@@ -23,6 +23,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [activeMenu, setActiveMenu] = useState('home')
   const [isCardAuthorized, setIsCardAuthorized] = useState(false)
+  const [cardExpireTime, setCardExpireTime] = useState<string | undefined>(undefined)
   const { colors } = useTheme()
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -196,9 +197,12 @@ function App() {
       case 'token': return <AccountManager />
       case 'auto-register': 
         return isCardAuthorized ? (
-          <AutoRegister />
+          <AutoRegister expireTime={cardExpireTime} />
         ) : (
-          <CardAuth onAuthSuccess={() => setIsCardAuthorized(true)} />
+          <CardAuth onAuthSuccess={(expireTime) => {
+            setIsCardAuthorized(true);
+            setCardExpireTime(expireTime);
+          }} />
         )
       case 'kiro-config': return <KiroConfig />
       case 'login': return <Login onLogin={(user: any) => { handleLogin(user); setActiveMenu('token'); }} />

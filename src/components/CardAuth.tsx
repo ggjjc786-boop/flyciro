@@ -4,7 +4,7 @@ import { cardAuthApi } from '../api/cardAuth';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface CardAuthProps {
-  onAuthSuccess: () => void;
+  onAuthSuccess: (expireTime?: string) => void;
 }
 
 export function CardAuth({ onAuthSuccess }: CardAuthProps) {
@@ -41,10 +41,10 @@ export function CardAuth({ onAuthSuccess }: CardAuthProps) {
     setSuccessMessage('');
     
     try {
-      const message = await cardAuthApi.verifyCardKey(cardKey);
-      setSuccessMessage(`登录成功！${message}`);
+      const result = await cardAuthApi.verifyCardKey(cardKey);
+      setSuccessMessage(`登录成功！${result.message}`);
       setTimeout(() => {
-        onAuthSuccess();
+        onAuthSuccess(result.expire_time);
       }, 1500);
     } catch (error) {
       setErrorMessage(String(error));

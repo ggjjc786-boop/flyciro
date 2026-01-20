@@ -102,7 +102,7 @@ pub async fn get_notice() -> Result<String> {
 }
 
 /// 卡密登录验证
-pub async fn card_login(card_key: &str) -> Result<(i32, String)> {
+pub async fn card_login(card_key: &str) -> Result<(i32, String, Option<String>)> {
     let machine_code = get_machine_code();
     let timestamp = get_timestamp();
     
@@ -142,6 +142,16 @@ pub async fn card_login(card_key: &str) -> Result<(i32, String)> {
     let code = json["code"].as_i64().unwrap_or(0) as i32;
     let msg = json["msg"].as_str().unwrap_or("Unknown error").to_string();
     
+    // 提取到期时间
+    let expire_time = if code == 200 {
+        json["msg"].as_object()
+            .and_then(|obj| obj.get("endtime"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+    } else {
+        None
+    };
+    
     // 验证数据完整性（仅当 code == 200 时）
     if code == 200 {
         if let (Some(time), Some(check)) = (json["time"].as_i64(), json["check"].as_str()) {
@@ -154,7 +164,7 @@ pub async fn card_login(card_key: &str) -> Result<(i32, String)> {
         }
     }
     
-    Ok((code, msg))
+    Ok((code, msg, expire_time))
 }
 
 /// 卡密解绑

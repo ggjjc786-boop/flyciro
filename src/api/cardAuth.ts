@@ -1,5 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
 
+export interface CardAuthResult {
+  message: string;
+  expire_time?: string;
+}
+
 export const cardAuthApi = {
   /**
    * 获取公告
@@ -11,7 +16,7 @@ export const cardAuthApi = {
   /**
    * 验证卡密
    */
-  async verifyCardKey(cardKey: string): Promise<string> {
+  async verifyCardKey(cardKey: string): Promise<CardAuthResult> {
     return invoke('verify_card_key', { cardKey });
   },
 
