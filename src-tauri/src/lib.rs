@@ -13,6 +13,7 @@ mod steering;
 mod process;
 mod browser;
 mod deep_link_handler;
+mod card_auth;
 
 // Shared modules (used by both main app and auto_register)
 mod database;
@@ -130,6 +131,10 @@ pub fn run() {
             commands::auto_register_cmd::auto_register_batch_fetch_kiro_credentials,
             commands::auto_register_cmd::auto_register_import_to_main,
             commands::auto_register_cmd::auto_register_get_credentials_and_import,
+            commands::card_auth_cmd::get_card_notice,
+            commands::card_auth_cmd::verify_card_key,
+            commands::card_auth_cmd::unbind_card_key,
+            commands::card_auth_cmd::get_device_code,
             crate::kiro::switch_kiro_account,
         ])
         .run(tauri::generate_context!())

@@ -12,6 +12,7 @@ import WebOAuthLogin from './components/WebOAuthLogin'
 import AuthCallback from './components/AuthCallback'
 import UpdateChecker from './components/UpdateChecker'
 import { AutoRegister } from './components/AutoRegister'
+import { CardAuth } from './components/CardAuth'
 import { useTheme } from './contexts/ThemeContext'
 
 // 默认自动刷新间隔：50分钟
@@ -21,6 +22,7 @@ function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [activeMenu, setActiveMenu] = useState('home')
+  const [isCardAuthorized, setIsCardAuthorized] = useState(false)
   const { colors } = useTheme()
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -192,7 +194,12 @@ function App() {
     switch (activeMenu) {
       case 'home': return <Home onNavigate={setActiveMenu} />
       case 'token': return <AccountManager />
-      case 'auto-register': return <AutoRegister />
+      case 'auto-register': 
+        return isCardAuthorized ? (
+          <AutoRegister />
+        ) : (
+          <CardAuth onAuthSuccess={() => setIsCardAuthorized(true)} />
+        )
       case 'kiro-config': return <KiroConfig />
       case 'login': return <Login onLogin={(user: any) => { handleLogin(user); setActiveMenu('token'); }} />
       case 'web-oauth': return <WebOAuthLogin onLogin={(user: any) => { handleLogin(user); setActiveMenu('token'); }} />
