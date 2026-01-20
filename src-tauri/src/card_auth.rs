@@ -14,7 +14,7 @@ pub struct AuthResponse {
     pub code: i32,
     pub msg: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub time: Option<String>,
+    pub time: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub check: Option<String>,
 }
