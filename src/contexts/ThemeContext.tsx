@@ -118,7 +118,7 @@ export const themes: Record<string, ThemeColors> = {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState('dark')
+  const [theme, setThemeState] = useState('light')
   const [loaded, setLoaded] = useState(false)
 
   // 从文件加载设置
