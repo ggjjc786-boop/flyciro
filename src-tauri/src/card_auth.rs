@@ -1,5 +1,4 @@
 use anyhow::{Result, anyhow};
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
 use md5;
@@ -146,8 +145,15 @@ pub async fn card_login(card_key: &str) -> Result<(i32, String, Option<String>)>
     let expire_time = if code == 200 {
         json["msg"].as_object()
             .and_then(|obj| obj.get("vip"))
-            .and_then(|v| v.as_str().or_else(|| v.as_i64().map(|i| i.to_string()).as_deref()))
-            .map(|s| s.to_string())
+            .and_then(|v| {
+                if let Some(s) = v.as_str() {
+                    Some(s.to_string())
+                } else if let Some(i) = v.as_i64() {
+                    Some(i.to_string())
+                } else {
+                    None
+                }
+            })
     } else {
         None
     };

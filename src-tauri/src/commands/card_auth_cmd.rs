@@ -1,6 +1,5 @@
-use tauri::State;
-use crate::card_auth;
 use serde::{Deserialize, Serialize};
+use crate::card_auth;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CardAuthResult {
