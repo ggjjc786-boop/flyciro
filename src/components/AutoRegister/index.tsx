@@ -75,21 +75,22 @@ export function AutoRegister({ expireTime }: AutoRegisterProps) {
 
   return (
     <div className={`h-full overflow-hidden ${colors.main}`}>
-      {/* 顶部到期时间显示 */}
-      {expireTime && (
-        <div className={`px-6 py-3 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-          <div className="flex items-center justify-end gap-2">
-            <Clock className={`w-4 h-4 ${colors.textMuted}`} />
-            <span className={`text-sm ${colors.textMuted}`}>
-              到期时间: <span className={colors.text}>{formatExpireTime(expireTime)}</span>
-            </span>
-          </div>
-        </div>
-      )}
-      
       <div className="flex gap-6 h-full p-6">
         <div className="w-96 flex-shrink-0 flex flex-col gap-6 overflow-y-auto">
           <ImportPanel onImportComplete={loadData} />
+          
+          {/* 到期时间显示 */}
+          {expireTime && (
+            <div className={`card-glow ${colors.card} rounded-2xl border ${colors.cardBorder} overflow-hidden shadow-sm p-4`}>
+              <div className="flex items-center justify-center gap-2">
+                <Clock className={`w-4 h-4 ${colors.textMuted}`} />
+                <span className={`text-sm ${colors.textMuted}`}>
+                  到期时间: <span className={`font-semibold ${colors.text}`}>{formatExpireTime(expireTime)}</span>
+                </span>
+              </div>
+            </div>
+          )}
+          
           <ControlPanel
             onFilterChange={handleFilterChange}
             onRefresh={loadData}
