@@ -142,11 +142,11 @@ pub async fn card_login(card_key: &str) -> Result<(i32, String, Option<String>)>
     let code = json["code"].as_i64().unwrap_or(0) as i32;
     let msg = json["msg"].as_str().unwrap_or("Unknown error").to_string();
     
-    // 提取到期时间
+    // 提取到期时间（vip 字段）
     let expire_time = if code == 200 {
         json["msg"].as_object()
-            .and_then(|obj| obj.get("endtime"))
-            .and_then(|v| v.as_str())
+            .and_then(|obj| obj.get("vip"))
+            .and_then(|v| v.as_str().or_else(|| v.as_i64().map(|i| i.to_string()).as_deref()))
             .map(|s| s.to_string())
     } else {
         None
