@@ -10,27 +10,27 @@ pub async fn get_card_notice() -> Result<String, String> {
 
 #[tauri::command]
 pub async fn verify_card_key(card_key: String) -> Result<String, String> {
-    let response = card_auth::card_login(&card_key)
+    let (code, msg) = card_auth::card_login(&card_key)
         .await
         .map_err(|e| e.to_string())?;
     
-    if response.code == 200 {
-        Ok(response.msg)
+    if code == 200 {
+        Ok(msg)
     } else {
-        Err(response.msg)
+        Err(msg)
     }
 }
 
 #[tauri::command]
 pub async fn unbind_card_key(card_key: String) -> Result<String, String> {
-    let response = card_auth::card_unbind(&card_key)
+    let (code, msg) = card_auth::card_unbind(&card_key)
         .await
         .map_err(|e| e.to_string())?;
     
-    if response.code == 200 {
-        Ok(response.msg)
+    if code == 200 {
+        Ok(msg)
     } else {
-        Err(response.msg)
+        Err(msg)
     }
 }
 

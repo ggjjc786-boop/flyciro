@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
 use md5;
 use hex;
@@ -8,26 +9,6 @@ const API_URL: &str = "https://zh.xphdfs.me/api.php";
 const APP_ID: &str = "10002";
 const KEY_MY: &str = "DxhTVxT08L0AD3Dx";
 const RC4_KEY: &str = "8HacPHMcsWK10002";
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AuthResponse {
-    pub code: i32,
-    pub msg: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub time: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub check: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct NoticeResponse {
-    pub msg: NoticeMsg,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct NoticeMsg {
-    pub app_gg: String,
-}
 
 /// RC4 加密/解密
 fn rc4(key: &str, data: &[u8]) -> Vec<u8> {
@@ -59,19 +40,6 @@ fn rc4(key: &str, data: &[u8]) -> Vec<u8> {
     result
 }
 
-/// 字符串转十六进制
-fn string_to_hex(s: &str) -> String {
-    hex::encode(s.as_bytes())
-}
-
-/// 十六进制转字符串
-fn hex_to_string(hex_str: &str) -> Result<String> {
-    let bytes = hex::decode(hex_str)
-        .map_err(|e| anyhow!("Failed to decode hex: {}", e))?;
-    String::from_utf8(bytes)
-        .map_err(|e| anyhow!("Failed to convert to UTF-8: {}", e))
-}
-
 /// RC4 加密（返回十六进制）
 fn rc4_encrypt(key: &str, data: &str) -> String {
     let encrypted = rc4(key, data.as_bytes());
@@ -101,9 +69,8 @@ fn md5_hash(data: &str) -> String {
     format!("{:x}", digest)
 }
 
-/// 获取机器码（使用 Tauri 的 machine ID）
+/// 获取机器码
 pub fn get_machine_code() -> String {
-    // 使用 Tauri 的机器 ID 或生成一个唯一标识
     use crate::kiro::get_machine_id;
     get_machine_id()
 }
@@ -121,14 +88,21 @@ pub async fn get_notice() -> Result<String> {
     // 解密响应
     let decrypted = rc4_decrypt(RC4_KEY, &encrypted_data)?;
     
-    let notice: NoticeResponse = serde_json::from_str(&decrypted)
+    // 解析 JSON
+    let json: Value = serde_json::from_str(&decrypted)
         .map_err(|e| anyhow!("Failed to parse notice: {}", e))?;
     
-    Ok(notice.msg.app_gg)
+    // 提取 msg.app_gg
+    let notice = json["msg"]["app_gg"]
+        .as_str()
+        .ok_or_else(|| anyhow!("Invalid notice format"))?
+        .to_string();
+    
+    Ok(notice)
 }
 
 /// 卡密登录验证
-pub async fn card_login(card_key: &str) -> Result<AuthResponse> {
+pub async fn card_login(card_key: &str) -> Result<(i32, String)> {
     let machine_code = get_machine_code();
     let timestamp = get_timestamp();
     
@@ -161,24 +135,30 @@ pub async fn card_login(card_key: &str) -> Result<AuthResponse> {
     // 解密响应
     let decrypted = rc4_decrypt(RC4_KEY, &encrypted_response)?;
     
-    let auth_response: AuthResponse = serde_json::from_str(&decrypted)
+    // 解析 JSON
+    let json: Value = serde_json::from_str(&decrypted)
         .map_err(|e| anyhow!("Failed to parse response: {}", e))?;
     
-    // 验证数据完整性
-    if let (Some(time), Some(check)) = (&auth_response.time, &auth_response.check) {
-        let verify_str = format!("{}{}{}", time, KEY_MY, random);
-        let verify_hash = md5_hash(&verify_str);
-        
-        if verify_hash != *check {
-            return Err(anyhow!("数据被修改，验证失败"));
+    let code = json["code"].as_i64().unwrap_or(0) as i32;
+    let msg = json["msg"].as_str().unwrap_or("Unknown error").to_string();
+    
+    // 验证数据完整性（仅当 code == 200 时）
+    if code == 200 {
+        if let (Some(time), Some(check)) = (json["time"].as_i64(), json["check"].as_str()) {
+            let verify_str = format!("{}{}{}", time, KEY_MY, random);
+            let verify_hash = md5_hash(&verify_str);
+            
+            if verify_hash != check {
+                return Err(anyhow!("数据被修改，验证失败"));
+            }
         }
     }
     
-    Ok(auth_response)
+    Ok((code, msg))
 }
 
 /// 卡密解绑
-pub async fn card_unbind(card_key: &str) -> Result<AuthResponse> {
+pub async fn card_unbind(card_key: &str) -> Result<(i32, String)> {
     let machine_code = get_machine_code();
     let timestamp = get_timestamp();
     
@@ -211,8 +191,12 @@ pub async fn card_unbind(card_key: &str) -> Result<AuthResponse> {
     // 解密响应
     let decrypted = rc4_decrypt(RC4_KEY, &encrypted_response)?;
     
-    let auth_response: AuthResponse = serde_json::from_str(&decrypted)
+    // 解析 JSON
+    let json: Value = serde_json::from_str(&decrypted)
         .map_err(|e| anyhow!("Failed to parse response: {}", e))?;
     
-    Ok(auth_response)
+    let code = json["code"].as_i64().unwrap_or(0) as i32;
+    let msg = json["msg"].as_str().unwrap_or("Unknown error").to_string();
+    
+    Ok((code, msg))
 }
